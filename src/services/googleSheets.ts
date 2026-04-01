@@ -79,90 +79,67 @@ export async function fetchSheetTabs(sheetId: string): Promise<SheetTab[]> {
   const cached = getCached<SheetTab[]>(cacheKey);
   if (cached) return cached;
 
-  // Fetch the spreadsheet HTML page to extract sheet names and GIDs
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/edit?usp=sharing`;
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error("Planilha não encontrada ou não é pública. Compartilhe como Viewer.");
+  const months = [
+    "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+    "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
+  ];
+
+  // Probe years around current year
+  const currentYear = new Date().getFullYear();
+  const yearsToTry = [currentYear - 1, currentYear, currentYear + 1]
+    .map((y) => String(y).slice(-2));
+
+  const tabs: SheetTab[] = [];
+
+  // Probe all month/year combinations in parallel batches
+  const probes: { name: string; url: string }[] = [];
+  for (const year of yearsToTry) {
+    for (const month of months) {
+      const name = `${month} ${year}`;
+      probes.push({
+        name,
+        url: `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`,
+      });
     }
-    const html = await response.text();
-
-    // Parse sheet info from the HTML - Google embeds it in the page
-    const tabs: SheetTab[] = [];
-    
-    // Method 1: Look for sheet info in the HTML meta/script data
-    // Google Sheets embeds sheet data in various formats
-    const gidRegex = /gid=(\d+).*?>(.*?)<\/a>/g;
-    let match;
-    while ((match = gidRegex.exec(html)) !== null) {
-      tabs.push({ gid: match[1], name: match[2].trim() });
-    }
-
-    // Method 2: Parse from the sheet tab buttons
-    if (tabs.length === 0) {
-      const tabRegex = /sheet-button[^>]*data-id="(\d+)"[^>]*>.*?<span[^>]*>(.*?)<\/span>/gs;
-      while ((match = tabRegex.exec(html)) !== null) {
-        tabs.push({ gid: match[1], name: match[2].trim() });
-      }
-    }
-
-    // Method 3: Try to find in JSON-like structures
-    if (tabs.length === 0) {
-      const jsonRegex = /"sheetId"\s*:\s*(\d+)\s*,\s*"title"\s*:\s*"([^"]+)"/g;
-      while ((match = jsonRegex.exec(html)) !== null) {
-        tabs.push({ gid: match[1], name: match[2].trim() });
-      }
-    }
-
-    // Method 4: Brute force - try common month names
-    if (tabs.length === 0) {
-      const months = [
-        "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
-        "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
-      ];
-      const currentYear = new Date().getFullYear().toString().slice(-2);
-      const years = [currentYear, String(Number(currentYear) - 1), String(Number(currentYear) + 1)];
-      
-      // Try first sheet (gid=0)
-      const testUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=0`;
-      try {
-        const testRes = await fetch(testUrl);
-        if (testRes.ok) {
-          tabs.push({ gid: "0", name: "Planilha1" });
-        }
-      } catch {}
-
-      // Try to discover tabs by attempting fetches with sheet names
-      for (const year of years) {
-        for (const month of months) {
-          const tabName = `${month} ${year}`;
-          const tabUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
-          try {
-            const res = await fetch(tabUrl, { signal: AbortSignal.timeout(3000) });
-            if (res.ok) {
-              const text = await res.text();
-              if (text.length > 50) {
-                tabs.push({ gid: "", name: tabName });
-              }
-            }
-          } catch {}
-        }
-      }
-    }
-
-    if (tabs.length === 0) {
-      // Fallback: at least try gid=0
-      tabs.push({ gid: "0", name: "Principal" });
-    }
-
-    setCache(cacheKey, tabs);
-    return tabs;
-  } catch (error) {
-    console.error("Erro ao buscar abas:", error);
-    throw new Error("Não foi possível acessar a planilha. Verifique se o ID está correto e a planilha é pública.");
   }
+
+  // Batch fetch (6 at a time)
+  for (let i = 0; i < probes.length; i += 6) {
+    const batch = probes.slice(i, i + 6);
+    const results = await Promise.allSettled(
+      batch.map(async (p) => {
+        const res = await fetch(p.url, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const text = await res.text();
+          if (text.length > 50 && !text.includes("Could not parse query")) {
+            return p.name;
+          }
+        }
+        return null;
+      })
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) {
+        tabs.push({ gid: "", name: r.value });
+      }
+    }
+  }
+
+  // Sort tabs chronologically
+  const monthOrder = Object.fromEntries(months.map((m, i) => [m, i]));
+  tabs.sort((a, b) => {
+    const [mA, yA] = a.name.split(" ");
+    const [mB, yB] = b.name.split(" ");
+    if (yA !== yB) return parseInt(yA) - parseInt(yB);
+    return (monthOrder[mA] ?? 0) - (monthOrder[mB] ?? 0);
+  });
+
+  if (tabs.length === 0) {
+    throw new Error("Nenhuma aba encontrada no formato 'MÊS ANO'. Verifique se a planilha é pública.");
+  }
+
+  setCache(cacheKey, tabs);
+  return tabs;
 }
 
 export async function fetchSheetData(sheetId: string, tab: SheetTab): Promise<SalesRow[]> {
