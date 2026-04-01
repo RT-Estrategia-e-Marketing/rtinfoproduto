@@ -35,6 +35,7 @@ function MetricCard({ label, value, icon, variant = "default", delay = 0 }: Metr
 export function SummaryCards({ summary }: SummaryCardsProps) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Row 1: Faturamento Bruto | Resultado Bruto */}
       <MetricCard
         label="Faturamento Bruto"
         value={formatCurrency(summary.totalGrossRevenue)}
@@ -43,30 +44,33 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         delay={0}
       />
       <MetricCard
-        label="Lucro Real"
-        value={formatCurrency(summary.totalRealProfit)}
-        icon={<TrendingUp className="h-5 w-5" />}
-        variant={summary.totalRealProfit >= 0 ? "success" : "danger"}
+        label="Resultado Bruto"
+        value={formatCurrency(summary.totalGrossResult)}
+        icon={<BarChart3 className="h-5 w-5" />}
+        variant={summary.totalGrossResult >= 0 ? "success" : "danger"}
         delay={50}
       />
-      <MetricCard
-        label="ROAS Médio"
-        value={formatNumber(summary.avgRoas)}
-        icon={<Target className="h-5 w-5" />}
-        variant={summary.avgRoas >= 2 ? "success" : summary.avgRoas >= 1 ? "warning" : "danger"}
-        delay={100}
-      />
-      <MetricCard
-        label="Tickets Totais"
-        value={summary.totalTickets.toLocaleString("pt-BR")}
-        icon={<Ticket className="h-5 w-5" />}
-        delay={150}
-      />
+      {/* Row 2: Investimento | Lucro Real */}
       <MetricCard
         label="Investimento"
         value={formatCurrency(summary.totalInvestment)}
         icon={<CreditCard className="h-5 w-5" />}
         variant="warning"
+        delay={100}
+      />
+      <MetricCard
+        label="Lucro Real"
+        value={formatCurrency(summary.totalRealProfit)}
+        icon={<TrendingUp className="h-5 w-5" />}
+        variant={summary.totalRealProfit >= 0 ? "success" : "danger"}
+        delay={150}
+      />
+      {/* Row 3: ROAS Médio | Taxas */}
+      <MetricCard
+        label="ROAS Médio"
+        value={formatNumber(summary.avgRoas)}
+        icon={<Target className="h-5 w-5" />}
+        variant={summary.avgRoas >= 2 ? "success" : summary.avgRoas >= 1 ? "warning" : "danger"}
         delay={200}
       />
       <MetricCard
@@ -76,11 +80,11 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         variant="danger"
         delay={250}
       />
+      {/* Row 4: Tickets | Ticket Médio */}
       <MetricCard
-        label="Resultado Bruto"
-        value={formatCurrency(summary.totalGrossResult)}
-        icon={<BarChart3 className="h-5 w-5" />}
-        variant={summary.totalGrossResult >= 0 ? "success" : "danger"}
+        label="Tickets Totais"
+        value={summary.totalTickets.toLocaleString("pt-BR")}
+        icon={<Ticket className="h-5 w-5" />}
         delay={300}
       />
       <MetricCard

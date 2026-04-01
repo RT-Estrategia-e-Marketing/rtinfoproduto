@@ -1,15 +1,19 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { SheetInputForm } from "@/components/SheetInputForm";
 import { DashboardFilters } from "@/components/DashboardFilters";
 import { SummaryCards } from "@/components/SummaryCards";
 import { DailyTable } from "@/components/DailyTable";
 import { SalesCharts } from "@/components/SalesCharts";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   fetchSheetTabs,
-  fetchSheetData,
+  fetchAllTabsData,
   calculateSummary,
   exportToCSV,
+  getAvailableMonths,
+  filterByMonth,
+  filterByDateRange,
   type SheetTab,
   type SalesRow,
 } from "@/services/googleSheets";
@@ -17,12 +21,16 @@ import { BarChart3, Loader2 } from "lucide-react";
 
 const Index = () => {
   const [sheetId, setSheetId] = useState<string>("");
-  const [tabs, setTabs] = useState<SheetTab[]>([]);
-  const [selectedTab, setSelectedTab] = useState<string>("");
-  const [rows, setRows] = useState<SalesRow[]>([]);
+  const [allRows, setAllRows] = useState<SalesRow[]>([]);
   const [isLoadingTabs, setIsLoadingTabs] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [tabs, setTabs] = useState<SheetTab[]>([]);
+
+  // Filters
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
 
   const handleConnect = useCallback(async (id: string) => {
     setIsLoadingTabs(true);
@@ -30,78 +38,98 @@ const Index = () => {
       const detectedTabs = await fetchSheetTabs(id);
       setSheetId(id);
       setTabs(detectedTabs);
-      setConnected(true);
-      toast.success(`${detectedTabs.length} aba(s) detectada(s)!`);
+      toast.success(`${detectedTabs.length} aba(s) detectada(s)! Carregando dados...`);
 
-      // Auto-select first tab and load data
-      if (detectedTabs.length > 0) {
-        const firstTab = detectedTabs[0];
-        setSelectedTab(firstTab.name);
-        await loadTabData(id, firstTab);
+      setIsLoadingData(true);
+      const data = await fetchAllTabsData(id, detectedTabs);
+      setAllRows(data);
+      setConnected(true);
+
+      if (data.length > 0) {
+        toast.success(`${data.length} registros carregados de todas as abas`);
+      } else {
+        toast.warning("Nenhum dado encontrado");
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao conectar");
     } finally {
       setIsLoadingTabs(false);
+      setIsLoadingData(false);
     }
   }, []);
 
-  const loadTabData = async (id: string, tab: SheetTab) => {
-    setIsLoadingData(true);
-    try {
-      const data = await fetchSheetData(id, tab);
-      setRows(data);
-      if (data.length > 0) {
-        const summary = calculateSummary(data);
-        console.log(`Teste OK: ${data.length} linhas. Fat. Bruto Total: R$ ${summary.totalGrossRevenue.toFixed(2)}`);
-        toast.success(`${data.length} registros carregados`);
-      } else {
-        toast.warning("Nenhum dado encontrado nesta aba");
-      }
-    } catch (error) {
-      toast.error("Erro ao carregar dados da aba");
-    } finally {
-      setIsLoadingData(false);
-    }
-  };
+  const availableMonths = useMemo(() => {
+    return getAvailableMonths(allRows).map((m) => ({
+      label: m.label,
+      value: `${m.year}-${m.month}`,
+      year: m.year,
+      month: m.month,
+    }));
+  }, [allRows]);
 
-  const handleTabChange = async (tabName: string) => {
-    setSelectedTab(tabName);
-    const tab = tabs.find((t) => t.name === tabName);
-    if (tab) await loadTabData(sheetId, tab);
-  };
+  const filteredRows = useMemo(() => {
+    let rows = allRows;
+
+    if (selectedMonth !== "all") {
+      const [year, month] = selectedMonth.split("-").map(Number);
+      rows = filterByMonth(rows, year, month);
+    }
+
+    if (dateFrom) {
+      const start = new Date(dateFrom);
+      start.setHours(0, 0, 0, 0);
+      rows = rows.filter((r) => r.dateObj >= start);
+    }
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      rows = rows.filter((r) => r.dateObj <= end);
+    }
+
+    return rows;
+  }, [allRows, selectedMonth, dateFrom, dateTo]);
+
+  const summary = useMemo(() => calculateSummary(filteredRows), [filteredRows]);
 
   const handleExport = () => {
-    if (rows.length > 0) {
-      exportToCSV(rows, `infoproduto_${selectedTab.replace(/\s+/g, "_")}.csv`);
+    if (filteredRows.length > 0) {
+      exportToCSV(filteredRows, `infoproduto_export.csv`);
       toast.success("CSV exportado!");
     }
   };
 
-  const handleRefresh = async () => {
-    const tab = tabs.find((t) => t.name === selectedTab);
-    if (tab) await loadTabData(sheetId, tab);
-  };
-
-  const summary = calculateSummary(rows);
+  const handleRefresh = useCallback(async () => {
+    if (!sheetId || tabs.length === 0) return;
+    setIsLoadingData(true);
+    try {
+      const data = await fetchAllTabsData(sheetId, tabs);
+      setAllRows(data);
+      toast.success(`${data.length} registros atualizados`);
+    } catch {
+      toast.error("Erro ao atualizar dados");
+    } finally {
+      setIsLoadingData(false);
+    }
+  }, [sheetId, tabs]);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-            <BarChart3 className="h-5 w-5 text-primary-foreground" />
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
+              <BarChart3 className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-lg font-heading font-bold tracking-tight">Infoproduto Dashboard</h1>
+              <p className="text-xs text-muted-foreground">Análise de vendas via Google Sheets</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-heading font-bold tracking-tight">Infoproduto Dashboard</h1>
-            <p className="text-xs text-muted-foreground">Análise de vendas via Google Sheets</p>
-          </div>
+          <ThemeToggle />
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Sheet Input */}
         {!connected ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
             <div className="text-center space-y-3">
@@ -113,30 +141,31 @@ const Index = () => {
                 Insira o ID da planilha pública do Google Sheets para visualizar seus dados de vendas.
               </p>
             </div>
-            <SheetInputForm onSubmit={handleConnect} isLoading={isLoadingTabs} />
+            <SheetInputForm onSubmit={handleConnect} isLoading={isLoadingTabs || isLoadingData} />
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Connection info */}
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Planilha conectada · <span className="font-mono text-xs">{sheetId.slice(0, 20)}...</span>
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Planilha conectada · <span className="font-mono text-xs">{sheetId.slice(0, 20)}...</span>
+                {" · "}{allRows.length} registros totais
+              </p>
               <button
-                onClick={() => { setConnected(false); setTabs([]); setRows([]); }}
+                onClick={() => { setConnected(false); setTabs([]); setAllRows([]); setSelectedMonth("all"); setDateFrom(undefined); setDateTo(undefined); }}
                 className="text-xs text-muted-foreground hover:text-foreground underline"
               >
                 Trocar planilha
               </button>
             </div>
 
-            {/* Filters */}
             <DashboardFilters
-              tabs={tabs}
-              selectedTab={selectedTab}
-              onTabChange={handleTabChange}
+              months={availableMonths}
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
               onExport={handleExport}
               onRefresh={handleRefresh}
               isLoading={isLoadingData}
@@ -148,14 +177,9 @@ const Index = () => {
               </div>
             ) : (
               <>
-                {/* Summary Cards */}
                 <SummaryCards summary={summary} />
-
-                {/* Charts */}
-                <SalesCharts rows={rows} />
-
-                {/* Daily Table */}
-                <DailyTable rows={rows} />
+                <SalesCharts rows={filteredRows} />
+                <DailyTable rows={filteredRows} />
               </>
             )}
           </div>
