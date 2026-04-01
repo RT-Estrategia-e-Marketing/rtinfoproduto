@@ -188,23 +188,45 @@ export async function fetchSheetData(sheetId: string, tab: SheetTab): Promise<Sa
     });
 
     const rows: SalesRow[] = [];
+    const headers = parsed.meta.fields || [];
+    
+    // Find columns by partial match (headers may have extra text)
+    function findCol(partials: string[]): string {
+      for (const p of partials) {
+        const found = headers.find((h) => h.toLowerCase().trim().includes(p.toLowerCase()));
+        if (found) return found;
+      }
+      return "";
+    }
+
+    const colDate = findCol(["Data"]);
+    const colDay = findCol(["Dia Semana", "Dia da Semana"]);
+    const colTickets = findCol(["TICKETS", "Tickets"]);
+    const colRevenue = findCol(["Faturamento Bruto"]);
+    const colFees = findCol(["Taxas"]);
+    const colGrossResult = findCol(["Resultado Bruto"]);
+    const colInvestment = findCol(["Investimento"]);
+    const colProfit = findCol(["Lucro Real"]);
+    const colRoas = findCol(["ROAS"]);
+    const colAvgTicket = findCol(["Ticket Médio", "Ticket Medio"]);
+
     for (const row of parsed.data as Record<string, string>[]) {
-      const dateStr = row["Data"] || row["data"] || "";
+      const dateStr = row[colDate] || "";
       const dateObj = parseBRDate(dateStr);
-      if (!dateObj) continue; // Skip rows without valid date
+      if (!dateObj) continue;
 
       rows.push({
         date: dateStr.trim(),
         dateObj,
-        dayOfWeek: (row["Dia da Semana"] || row["dia da semana"] || "").trim(),
-        tickets: parseBRNumber(row["TICKETS"] || row["Tickets"] || row["tickets"] || "0"),
-        grossRevenue: parseBRNumber(row["Faturamento Bruto"] || row["faturamento bruto"] || "0"),
-        fees: parseBRNumber(row["Taxas"] || row["taxas"] || "0"),
-        grossResult: parseBRNumber(row["Resultado Bruto"] || row["resultado bruto"] || "0"),
-        investment: parseBRNumber(row["Investimento"] || row["investimento"] || "0"),
-        realProfit: parseBRNumber(row["Lucro Real"] || row["lucro real"] || "0"),
-        roas: parseBRNumber(row["ROAS"] || row["Roas"] || row["roas"] || "0"),
-        avgTicket: parseBRNumber(row["Ticket Médio"] || row["ticket médio"] || row["Ticket Medio"] || "0"),
+        dayOfWeek: (row[colDay] || "").trim(),
+        tickets: parseBRNumber(row[colTickets] || "0"),
+        grossRevenue: parseBRNumber(row[colRevenue] || "0"),
+        fees: parseBRNumber(row[colFees] || "0"),
+        grossResult: parseBRNumber(row[colGrossResult] || "0"),
+        investment: parseBRNumber(row[colInvestment] || "0"),
+        realProfit: parseBRNumber(row[colProfit] || "0"),
+        roas: parseBRNumber(row[colRoas] || "0"),
+        avgTicket: parseBRNumber(row[colAvgTicket] || "0"),
       });
     }
 
