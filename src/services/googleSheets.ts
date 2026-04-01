@@ -49,14 +49,18 @@ function setCache(key: string, data: unknown) {
 
 function parseBRNumber(value: string): number {
   if (!value || value.trim() === "" || value === "-") return 0;
-  // Remove R$, spaces, dots as thousand separators, replace comma with dot
-  const cleaned = value
+  const trimmed = value.trim();
+  const isNegative = trimmed.startsWith("-");
+  // Remove R$, negative sign, spaces, dots as thousand separators, replace comma with dot
+  const cleaned = trimmed
+    .replace(/-/g, "")
     .replace(/R\$\s*/g, "")
     .replace(/\s/g, "")
     .replace(/\./g, "")
     .replace(",", ".");
   const num = parseFloat(cleaned);
-  return isNaN(num) ? 0 : num;
+  if (isNaN(num)) return 0;
+  return isNegative ? -num : num;
 }
 
 function parseBRDate(value: string): Date | null {
