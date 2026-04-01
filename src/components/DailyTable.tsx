@@ -1,11 +1,6 @@
 import { type SalesRow, formatCurrency, formatNumber } from "@/services/googleSheets";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter,
 } from "@/components/ui/table";
 
 interface DailyTableProps {
@@ -20,6 +15,17 @@ export function DailyTable({ rows }: DailyTableProps) {
       </div>
     );
   }
+
+  const totals = {
+    tickets: rows.reduce((s, r) => s + r.tickets, 0),
+    grossRevenue: rows.reduce((s, r) => s + r.grossRevenue, 0),
+    fees: rows.reduce((s, r) => s + r.fees, 0),
+    grossResult: rows.reduce((s, r) => s + r.grossResult, 0),
+    investment: rows.reduce((s, r) => s + r.investment, 0),
+    realProfit: rows.reduce((s, r) => s + r.realProfit, 0),
+    roas: rows.reduce((s, r) => s + r.roas, 0) / rows.length,
+    avgTicket: rows.reduce((s, r) => s + r.avgTicket, 0) / rows.length,
+  };
 
   return (
     <div className="dashboard-section overflow-hidden">
@@ -63,6 +69,24 @@ export function DailyTable({ rows }: DailyTableProps) {
                 </TableRow>
               ))}
             </TableBody>
+            <TableFooter>
+              <TableRow className="border-border bg-muted/50 font-semibold">
+                <TableCell className="text-sm">Total</TableCell>
+                <TableCell />
+                <TableCell className="text-sm text-right">{totals.tickets}</TableCell>
+                <TableCell className="text-sm text-right">{formatCurrency(totals.grossRevenue)}</TableCell>
+                <TableCell className="text-sm text-right negative-value">{formatCurrency(totals.fees)}</TableCell>
+                <TableCell className={`text-sm text-right ${totals.grossResult >= 0 ? "positive-value" : "negative-value"}`}>
+                  {formatCurrency(totals.grossResult)}
+                </TableCell>
+                <TableCell className="text-sm text-right">{formatCurrency(totals.investment)}</TableCell>
+                <TableCell className={`text-sm text-right ${totals.realProfit >= 0 ? "positive-value" : "negative-value"}`}>
+                  {formatCurrency(totals.realProfit)}
+                </TableCell>
+                <TableCell className="text-sm text-right">{formatNumber(totals.roas)}</TableCell>
+                <TableCell className="text-sm text-right">{formatCurrency(totals.avgTicket)}</TableCell>
+              </TableRow>
+            </TableFooter>
           </Table>
         </div>
       </div>
