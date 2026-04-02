@@ -39,8 +39,6 @@ function ChartCard({ title, children, className = "" }: { title: string; childre
 }
 
 export function SalesCharts({ rows }: SalesChartsProps) {
-  if (rows.length === 0) return null;
-
   const chartData = useMemo(() => rows.map((r) => ({
     date: r.date.slice(0, 5),
     faturamento: r.grossRevenue,
