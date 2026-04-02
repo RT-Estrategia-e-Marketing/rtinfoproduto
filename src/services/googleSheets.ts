@@ -234,9 +234,18 @@ export async function fetchAllTabsData(sheetId: string, tabs: SheetTab[]): Promi
     }
   }
 
-  allRows.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-  setCache(cacheKey, allRows);
-  return allRows;
+  // Deduplicate by date string to avoid duplicate entries from tabs with same data
+  const seen = new Map<string, SalesRow>();
+  for (const row of allRows) {
+    const key = row.date;
+    if (!seen.has(key)) {
+      seen.set(key, row);
+    }
+  }
+  const uniqueRows = Array.from(seen.values());
+  uniqueRows.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+  setCache(cacheKey, uniqueRows);
+  return uniqueRows;
 }
 
 export function calculateSummary(rows: SalesRow[]): SalesSummary {
