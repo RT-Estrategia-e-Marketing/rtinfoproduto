@@ -262,8 +262,8 @@ export function calculateSummary(rows: SalesRow[]): SalesSummary {
   const totalGrossResult = rows.reduce((sum, r) => sum + r.grossResult, 0);
   const totalInvestment = rows.reduce((sum, r) => sum + r.investment, 0);
   const totalRealProfit = rows.reduce((sum, r) => sum + r.realProfit, 0);
-  const avgRoas = rows.reduce((sum, r) => sum + r.roas, 0) / rows.length;
-  const avgTicket = rows.reduce((sum, r) => sum + r.avgTicket, 0) / rows.length;
+  const avgRoas = totalInvestment > 0 ? totalGrossRevenue / totalInvestment : 0;
+  const avgTicket = totalTickets > 0 ? totalGrossRevenue / totalTickets : 0;
 
   return {
     totalTickets, totalGrossRevenue, totalFees, totalGrossResult,
