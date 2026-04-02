@@ -132,7 +132,7 @@
   }
 
   .dashboard-section {
-    @apply bg-card rounded-xl border border-border p-6;
+    @apply bg-card rounded-xl border border-border p-6 transition-shadow duration-200 hover:shadow-md;
   }
 
   .negative-value {

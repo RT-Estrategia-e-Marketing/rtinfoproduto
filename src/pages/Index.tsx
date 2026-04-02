@@ -5,7 +5,10 @@ import { DashboardFilters } from "@/components/DashboardFilters";
 import { SummaryCards } from "@/components/SummaryCards";
 import { DailyTable } from "@/components/DailyTable";
 import { SalesCharts } from "@/components/SalesCharts";
+import { InsightsPanel } from "@/components/InsightsPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ChangelogModal } from "@/components/ChangelogModal";
+import { DashboardSkeleton } from "@/components/LoadingSkeleton";
 import {
   fetchSheetTabs,
   fetchAllTabsData,
@@ -13,11 +16,11 @@ import {
   exportToCSV,
   getAvailableMonths,
   filterByMonth,
-  filterByDateRange,
   type SheetTab,
   type SalesRow,
 } from "@/services/googleSheets";
-import { BarChart3, Loader2 } from "lucide-react";
+import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
   const [sheetId, setSheetId] = useState<string>("");
@@ -27,7 +30,6 @@ const Index = () => {
   const [connected, setConnected] = useState(false);
   const [tabs, setTabs] = useState<SheetTab[]>([]);
 
-  // Filters
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
@@ -69,12 +71,10 @@ const Index = () => {
 
   const filteredRows = useMemo(() => {
     let rows = allRows;
-
     if (selectedMonth !== "all") {
       const [year, month] = selectedMonth.split("-").map(Number);
       rows = filterByMonth(rows, year, month);
     }
-
     if (dateFrom) {
       const start = new Date(dateFrom);
       start.setHours(0, 0, 0, 0);
@@ -85,7 +85,6 @@ const Index = () => {
       end.setHours(23, 59, 59, 999);
       rows = rows.filter((r) => r.dateObj <= end);
     }
-
     return rows;
   }, [allRows, selectedMonth, dateFrom, dateTo]);
 
@@ -114,31 +113,34 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
+            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
               <BarChart3 className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
               <h1 className="text-lg font-heading font-bold tracking-tight">Infoproduto Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Análise de vendas via Google Sheets</p>
+              <p className="text-[11px] text-muted-foreground">Análise de vendas via Google Sheets</p>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ChangelogModal />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8">
         {!connected ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
-            <div className="text-center space-y-3">
-              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto animate-pulse-glow">
-                <BarChart3 className="h-8 w-8 text-primary" />
+            <div className="text-center space-y-4">
+              <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto animate-pulse-glow">
+                <BarChart3 className="h-10 w-10 text-primary" />
               </div>
-              <h2 className="text-2xl font-heading font-bold">Conecte sua planilha</h2>
+              <h2 className="text-3xl font-heading font-bold">Conecte sua planilha</h2>
               <p className="text-muted-foreground max-w-md">
-                Insira o ID da planilha pública do Google Sheets para visualizar seus dados de vendas.
+                Insira o ID da planilha pública do Google Sheets para visualizar seus dados de vendas com insights inteligentes.
               </p>
             </div>
             <SheetInputForm onSubmit={handleConnect} isLoading={isLoadingTabs || isLoadingData} />
@@ -147,12 +149,12 @@ const Index = () => {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Planilha conectada · <span className="font-mono text-xs">{sheetId.slice(0, 20)}...</span>
-                {" · "}{allRows.length} registros totais
+                Planilha conectada · <span className="font-mono text-xs">{sheetId.slice(0, 16)}...</span>
+                {" · "}{allRows.length} registros
               </p>
               <button
                 onClick={() => { setConnected(false); setTabs([]); setAllRows([]); setSelectedMonth("all"); setDateFrom(undefined); setDateTo(undefined); }}
-                className="text-xs text-muted-foreground hover:text-foreground underline"
+                className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
               >
                 Trocar planilha
               </button>
@@ -172,15 +174,45 @@ const Index = () => {
             />
 
             {isLoadingData ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
+              <DashboardSkeleton />
             ) : (
-              <>
-                <SummaryCards summary={summary} />
-                <SalesCharts rows={filteredRows} />
-                <DailyTable rows={filteredRows} />
-              </>
+              <Tabs defaultValue="resumo" className="space-y-6">
+                <TabsList className="bg-card border border-border p-1 h-auto flex-wrap">
+                  <TabsTrigger value="resumo" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                    Resumo
+                  </TabsTrigger>
+                  <TabsTrigger value="graficos" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <LineChart className="h-3.5 w-3.5" />
+                    Gráficos
+                  </TabsTrigger>
+                  <TabsTrigger value="tabela" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <TableProperties className="h-3.5 w-3.5" />
+                    Tabela
+                  </TabsTrigger>
+                  <TabsTrigger value="insights" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <Lightbulb className="h-3.5 w-3.5" />
+                    Insights
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="resumo" className="space-y-6 animate-fade-in">
+                  <SummaryCards summary={summary} />
+                  <SalesCharts rows={filteredRows} />
+                </TabsContent>
+
+                <TabsContent value="graficos" className="animate-fade-in">
+                  <SalesCharts rows={filteredRows} />
+                </TabsContent>
+
+                <TabsContent value="tabela" className="animate-fade-in">
+                  <DailyTable rows={filteredRows} />
+                </TabsContent>
+
+                <TabsContent value="insights" className="animate-fade-in">
+                  <InsightsPanel rows={filteredRows} allRows={allRows} />
+                </TabsContent>
+              </Tabs>
             )}
           </div>
         )}
