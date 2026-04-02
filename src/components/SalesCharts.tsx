@@ -70,6 +70,8 @@ export function SalesCharts({ rows }: SalesChartsProps) {
 
   const PIE_COLORS = ["hsl(var(--chart-red))", "hsl(var(--chart-orange))", "hsl(var(--chart-green))"];
 
+  if (rows.length === 0) return null;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <ChartCard title="Faturamento x Lucro x Investimento x Resultado" className="lg:col-span-2">
