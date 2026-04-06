@@ -13,6 +13,17 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: "2.1",
+    date: "06/04/2026",
+    title: "Assistente IA",
+    changes: [
+      { type: "feature", text: "Chat com IA — faça perguntas sobre seus dados e receba insights personalizados em tempo real" },
+      { type: "feature", text: "Streaming de respostas — a IA responde token a token para feedback instantâneo" },
+      { type: "feature", text: "Perguntas sugeridas para começar rapidamente" },
+      { type: "feature", text: "Contexto automático — a IA recebe resumo + dados diários + média por dia da semana" },
+    ],
+  },
+  {
     version: "2.0",
     date: "02/04/2026",
     title: "Mega Atualização — Dashboard Pro",
