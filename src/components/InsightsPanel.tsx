@@ -67,7 +67,7 @@ export function InsightsPanel({ rows, allRows }: InsightsPanelProps) {
       result.push({
         icon: <Target className="h-5 w-5" />,
         title: "Melhor ROAS",
-        description: `${bestRoasDay.date} — ROAS de ${formatNumber(bestRoasDay.roas)} (investiu ${formatCurrency(bestRoasDay.investment)}, faturou ${formatCurrency(bestRoasDay.grossRevenue)})`,
+        description: `${bestRoasDay.date} — ROAS de ${formatNumber(bestRoasDay.roas)} (investiu ${formatCurrency(bestRoasDay.investment)}, lucro real ${formatCurrency(bestRoasDay.realProfit)})`,
         type: "positive",
       });
     }
