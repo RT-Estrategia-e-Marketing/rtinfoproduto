@@ -19,7 +19,7 @@ import {
   type SheetTab,
   type SalesRow,
 } from "@/services/googleSheets";
-import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb } from "lucide-react";
+import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
@@ -194,6 +194,10 @@ const Index = () => {
                     <Lightbulb className="h-3.5 w-3.5" />
                     Insights
                   </TabsTrigger>
+                  <TabsTrigger value="ia" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <MessageSquareText className="h-3.5 w-3.5" />
+                    Chat IA
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="resumo" className="space-y-6 animate-fade-in">
@@ -211,6 +215,10 @@ const Index = () => {
 
                 <TabsContent value="insights" className="animate-fade-in">
                   <InsightsPanel rows={filteredRows} allRows={allRows} />
+                </TabsContent>
+
+                <TabsContent value="ia" className="animate-fade-in">
+                  <AIChatPanel rows={filteredRows} allRows={allRows} />
                 </TabsContent>
               </Tabs>
             )}
