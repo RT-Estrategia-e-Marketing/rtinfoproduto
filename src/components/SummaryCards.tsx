@@ -104,9 +104,9 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         label="ROAS Médio"
         value={formatNumber(s.avgRoas)}
         icon={<Target className="h-4 w-4" />}
-        variant={s.avgRoas >= 2 ? "success" : s.avgRoas >= 1 ? "warning" : "danger"}
+        variant={s.avgRoas >= 0 ? "success" : "danger"}
         delay={200}
-        tooltip={`Faturamento Bruto ${formatCurrency(s.totalGrossRevenue)} ÷ Investimento ${formatCurrency(s.totalInvestment)}\n= ${formatNumber(s.avgRoas)}`}
+        tooltip={`Lucro Real ${formatCurrency(s.totalRealProfit)} ÷ Investimento ${formatCurrency(s.totalInvestment)}\n= ${formatNumber(s.avgRoas)}`}
       />
       <MetricCard
         label="Taxas"

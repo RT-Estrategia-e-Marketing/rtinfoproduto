@@ -50,7 +50,7 @@ export function DailyTable({ rows }: DailyTableProps) {
     grossResult: rows.reduce((s, r) => s + r.grossResult, 0),
     investment: rows.reduce((s, r) => s + r.investment, 0),
     realProfit: rows.reduce((s, r) => s + r.realProfit, 0),
-    roas: rows.length > 0 ? rows.reduce((s, r) => s + r.grossRevenue, 0) / rows.reduce((s, r) => s + r.investment, 0) : 0,
+    roas: rows.length > 0 ? rows.reduce((s, r) => s + r.realProfit, 0) / rows.reduce((s, r) => s + r.investment, 0) : 0,
     avgTicket: rows.length > 0 ? rows.reduce((s, r) => s + r.grossRevenue, 0) / rows.reduce((s, r) => s + r.tickets, 0) : 0,
   }), [rows]);
 
@@ -141,7 +141,7 @@ export function DailyTable({ rows }: DailyTableProps) {
                   <TableCell className={`text-sm text-right font-semibold ${row.realProfit >= 0 ? "positive-value" : "negative-value"}`}>
                     {formatCurrency(row.realProfit)}
                   </TableCell>
-                  <TableCell className={`text-sm text-right ${row.roas >= 2 ? "positive-value" : row.roas < 1 ? "negative-value" : ""}`}>
+                  <TableCell className={`text-sm text-right ${row.roas >= 0 ? "positive-value" : "negative-value"}`}>
                     {formatNumber(row.roas)}
                   </TableCell>
                   <TableCell className="text-sm text-right">{formatCurrency(row.avgTicket)}</TableCell>
