@@ -6,6 +6,7 @@ import { SummaryCards } from "@/components/SummaryCards";
 import { DailyTable } from "@/components/DailyTable";
 import { SalesCharts } from "@/components/SalesCharts";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import { AIChatPanel } from "@/components/AIChatPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangelogModal } from "@/components/ChangelogModal";
 import { DashboardSkeleton } from "@/components/LoadingSkeleton";
