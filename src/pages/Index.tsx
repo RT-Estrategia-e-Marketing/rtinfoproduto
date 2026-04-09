@@ -263,7 +263,7 @@ const Index = () => {
 
                 {webhookData.length > 0 && (
                   <TabsContent value="analise" className="animate-fade-in">
-                    <SalesAnalysisPanel webhookData={webhookData} dailyRows={filteredRows} />
+                    <SalesAnalysisPanel webhookData={filteredWebhookData} dailyRows={filteredRows} />
                   </TabsContent>
                 )}
               </Tabs>
