@@ -5,26 +5,32 @@ export interface WebhookSale {
   date: string;
   dateObj: Date;
   hour: number;
-  dayOfWeek: number; // 0=Sun...6=Sat
+  dayOfWeek: number;
   dayOfWeekLabel: string;
   event: "PURCHASE_APPROVED" | "PURCHASE_REFUNDED" | string;
+  productId: string;
   productName: string;
-  fullPrice: number;
-  producerCommission: number;
-  marketplaceCommission: number;
-  paymentType: string;
   buyerName: string;
-  offerName: string;
-  funnelName: string;
-  isOrderBump: boolean;
-  isUpsell: boolean;
+  /** Preço de venda (AJ) - purchase_original_offer_price_value */
+  originalPrice: number;
+  /** Comissão recebida (AL) - purchase_price_value */
+  commissionReceived: number;
+  /** Taxa da plataforma = |originalPrice| - |commissionReceived| */
+  platformFee: number;
+  paymentType: string;
+  originSck: string;
+  trackingSrc: string;
+  trackingSrc2: string;
+  trackingSck: string;
+  trackingSck2: string;
+  /** Classificação: "principal" | "upsell" | "orderbump" */
+  productCategory: "principal" | "upsell" | "orderbump";
 }
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function parseDateTimeSP(value: string): Date | null {
   if (!value) return null;
-  // format: "2026-03-25 16:23:24"
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
   if (match) {
     return new Date(
@@ -33,6 +39,13 @@ function parseDateTimeSP(value: string): Date | null {
     );
   }
   return null;
+}
+
+function classifyProduct(name: string): "principal" | "upsell" | "orderbump" {
+  const lower = name.toLowerCase();
+  if (lower.includes("pizza na prática") || lower.includes("pizza na pratica")) return "principal";
+  if (lower.includes("bases gourmet") || lower.includes("bases gourmets") || lower.includes("pizza lucrativa")) return "upsell";
+  return "orderbump";
 }
 
 export function parseWebhookRows(csvText: string): WebhookSale[] {
@@ -53,16 +66,29 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
 
   const colDateSP = findCol(["purchase_order_date_sp"]);
   const colEvent = findCol(["event"]);
-  const colProduct = findCol(["product_name"]);
-  const colFullPrice = findCol(["purchase_full_price_value"]);
-  const colProducerComm = findCol(["commissions_producer_value"]);
-  const colMarketplaceComm = findCol(["commissions_marketplace_value"]);
-  const colPayment = findCol(["payment_type"]);
+  const colProductId = findCol(["product_id"]);
+  const colProductName = findCol(["product_name"]);
   const colBuyer = findCol(["buyer_name"]);
-  const colOffer = findCol(["purchase_offer_name"]);
-  const colFunnel = findCol(["purchase_funnel_name"]);
-  const colOrderBump = findCol(["purchase_order_bump_is_order_bump"]);
-  const colUpsell = findCol(["purchase_upsell_is_upsell"]);
+  const colOriginalPrice = findCol(["purchase_original_offer_price_value"]);
+  const colCommission = findCol(["purchase_price_value"]);
+  const colPayment = findCol(["payment_type"]);
+  const colOriginSck = findCol(["purchase_origin_sck"]);
+  // Tracking columns (BB, BC, BD, BE)
+  const colTrackSrc = findCol(["purchase_tracking_source"]);
+  const colTrackSrc2 = findCol(["purchase_tracking_source2", "tracking_source_2"]);
+  const colTrackSck = findCol(["purchase_tracking_sck"]);
+  const colTrackSck2 = findCol(["purchase_tracking_sck2", "tracking_sck_2"]);
+
+  // First pass: build product_id -> product_name map from approved sales
+  const idToName = new Map<string, string>();
+  for (const row of parsed.data as Record<string, string>[]) {
+    const event = (row[colEvent] || "").trim();
+    const productId = (row[colProductId] || "").trim();
+    const productName = (row[colProductName] || "").trim();
+    if (event.includes("APPROVED") && productId && productName) {
+      idToName.set(productId, productName);
+    }
+  }
 
   const rows: WebhookSale[] = [];
 
@@ -73,8 +99,18 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
     const dateObj = parseDateTimeSP(row[colDateSP] || "");
     if (!dateObj || isNaN(dateObj.getTime())) continue;
 
-    const productName = (row[colProduct] || "").trim();
-    if (!productName) continue;
+    const productId = (row[colProductId] || "").trim();
+    let productName = (row[colProductName] || "").trim();
+
+    // For refunds, resolve name from product_id if missing
+    if (!productName && productId) {
+      productName = idToName.get(productId) || `Produto ${productId}`;
+    }
+    if (!productName && !productId) continue;
+
+    const originalPrice = parseBRNumber(row[colOriginalPrice] || "0");
+    const commissionReceived = parseBRNumber(row[colCommission] || "0");
+    const platformFee = Math.abs(originalPrice) - Math.abs(commissionReceived);
 
     rows.push({
       date: row[colDateSP] || "",
@@ -83,16 +119,19 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
       dayOfWeek: dateObj.getDay(),
       dayOfWeekLabel: DAY_LABELS[dateObj.getDay()],
       event,
+      productId,
       productName,
-      fullPrice: parseBRNumber(row[colFullPrice] || "0"),
-      producerCommission: parseBRNumber(row[colProducerComm] || "0"),
-      marketplaceCommission: parseBRNumber(row[colMarketplaceComm] || "0"),
-      paymentType: (row[colPayment] || "").trim(),
       buyerName: (row[colBuyer] || "").trim(),
-      offerName: (row[colOffer] || "").trim(),
-      funnelName: (row[colFunnel] || "").trim(),
-      isOrderBump: (row[colOrderBump] || "").toUpperCase() === "TRUE",
-      isUpsell: (row[colUpsell] || "").toUpperCase() === "TRUE",
+      originalPrice,
+      commissionReceived,
+      platformFee: Math.max(0, platformFee),
+      paymentType: (row[colPayment] || "").trim(),
+      originSck: (row[colOriginSck] || "").trim(),
+      trackingSrc: (row[colTrackSrc] || "").trim(),
+      trackingSrc2: (row[colTrackSrc2] || "").trim(),
+      trackingSck: (row[colTrackSck] || "").trim(),
+      trackingSck2: (row[colTrackSck2] || "").trim(),
+      productCategory: classifyProduct(productName),
     });
   }
 
