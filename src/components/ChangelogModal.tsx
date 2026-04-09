@@ -13,6 +13,19 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
   {
+    version: "2.2",
+    date: "09/04/2026",
+    title: "Análise de Vendas (Webhooks)",
+    changes: [
+      { type: "feature", text: "Nova aba 'Análise Vendas' com dados da aba webhooks_pagamentos" },
+      { type: "feature", text: "Heatmap de vendas por horário e dia da semana para identificar padrões" },
+      { type: "feature", text: "Ranking de produtos com vendas, faturamento e reembolsos" },
+      { type: "feature", text: "Timeline cruzando vendas diárias vs investimento em tráfego" },
+      { type: "feature", text: "KPIs de reembolso: quantidade, valor e taxa percentual" },
+      { type: "feature", text: "Distribuição por método de pagamento" },
+    ],
+  },
+  {
     version: "2.1",
     date: "06/04/2026",
     title: "Assistente IA",

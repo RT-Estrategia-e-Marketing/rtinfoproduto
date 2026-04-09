@@ -7,6 +7,7 @@ import { DailyTable } from "@/components/DailyTable";
 import { SalesCharts } from "@/components/SalesCharts";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { AIChatPanel } from "@/components/AIChatPanel";
+import { SalesAnalysisPanel } from "@/components/SalesAnalysisPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangelogModal } from "@/components/ChangelogModal";
 import { DashboardSkeleton } from "@/components/LoadingSkeleton";
@@ -20,7 +21,8 @@ import {
   type SheetTab,
   type SalesRow,
 } from "@/services/googleSheets";
-import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText } from "lucide-react";
+import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
+import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
@@ -30,6 +32,7 @@ const Index = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [connected, setConnected] = useState(false);
   const [tabs, setTabs] = useState<SheetTab[]>([]);
+  const [webhookData, setWebhookData] = useState<WebhookSale[]>([]);
 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -47,6 +50,17 @@ const Index = () => {
       const data = await fetchAllTabsData(id, detectedTabs);
       setAllRows(data);
       setConnected(true);
+
+      // Try to load webhook data
+      try {
+        const wData = await fetchWebhookData(id);
+        setWebhookData(wData);
+        if (wData.length > 0) {
+          toast.success(`${wData.length} registros de webhooks carregados`);
+        }
+      } catch {
+        // webhooks tab may not exist, that's ok
+      }
 
       if (data.length > 0) {
         toast.success(`${data.length} registros carregados de todas as abas`);
@@ -199,6 +213,12 @@ const Index = () => {
                     <MessageSquareText className="h-3.5 w-3.5" />
                     Chat IA
                   </TabsTrigger>
+                  {webhookData.length > 0 && (
+                    <TabsTrigger value="analise" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      <Zap className="h-3.5 w-3.5" />
+                      Análise Vendas
+                    </TabsTrigger>
+                  )}
                 </TabsList>
 
                 <TabsContent value="resumo" className="space-y-6 animate-fade-in">
@@ -221,6 +241,12 @@ const Index = () => {
                 <TabsContent value="ia" className="animate-fade-in">
                   <AIChatPanel rows={filteredRows} allRows={allRows} />
                 </TabsContent>
+
+                {webhookData.length > 0 && (
+                  <TabsContent value="analise" className="animate-fade-in">
+                    <SalesAnalysisPanel webhookData={webhookData} dailyRows={filteredRows} />
+                  </TabsContent>
+                )}
               </Tabs>
             )}
           </div>
