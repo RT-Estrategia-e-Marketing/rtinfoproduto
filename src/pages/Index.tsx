@@ -32,6 +32,7 @@ const Index = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [connected, setConnected] = useState(false);
   const [tabs, setTabs] = useState<SheetTab[]>([]);
+  const [webhookData, setWebhookData] = useState<WebhookSale[]>([]);
 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
