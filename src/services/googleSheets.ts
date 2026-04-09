@@ -47,7 +47,7 @@ function setCache(key: string, data: unknown) {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
-function parseBRNumber(value: string): number {
+export function parseBRNumber(value: string): number {
   if (!value || value.trim() === "" || value === "-") return 0;
   const trimmed = value.trim();
   const isNegative = trimmed.startsWith("-");
