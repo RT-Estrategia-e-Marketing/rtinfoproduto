@@ -51,6 +51,17 @@ const Index = () => {
       setAllRows(data);
       setConnected(true);
 
+      // Try to load webhook data
+      try {
+        const wData = await fetchWebhookData(id);
+        setWebhookData(wData);
+        if (wData.length > 0) {
+          toast.success(`${wData.length} registros de webhooks carregados`);
+        }
+      } catch {
+        // webhooks tab may not exist, that's ok
+      }
+
       if (data.length > 0) {
         toast.success(`${data.length} registros carregados de todas as abas`);
       } else {
