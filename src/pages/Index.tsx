@@ -213,6 +213,12 @@ const Index = () => {
                     <MessageSquareText className="h-3.5 w-3.5" />
                     Chat IA
                   </TabsTrigger>
+                  {webhookData.length > 0 && (
+                    <TabsTrigger value="analise" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                      <Zap className="h-3.5 w-3.5" />
+                      Análise Vendas
+                    </TabsTrigger>
+                  )}
                 </TabsList>
 
                 <TabsContent value="resumo" className="space-y-6 animate-fade-in">
@@ -235,6 +241,12 @@ const Index = () => {
                 <TabsContent value="ia" className="animate-fade-in">
                   <AIChatPanel rows={filteredRows} allRows={allRows} />
                 </TabsContent>
+
+                {webhookData.length > 0 && (
+                  <TabsContent value="analise" className="animate-fade-in">
+                    <SalesAnalysisPanel webhookData={webhookData} dailyRows={filteredRows} />
+                  </TabsContent>
+                )}
               </Tabs>
             )}
           </div>
