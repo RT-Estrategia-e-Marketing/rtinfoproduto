@@ -103,6 +103,25 @@ const Index = () => {
     return rows;
   }, [allRows, selectedMonth, dateFrom, dateTo]);
 
+  const filteredWebhookData = useMemo(() => {
+    let data = webhookData;
+    if (selectedMonth !== "all") {
+      const [year, month] = selectedMonth.split("-").map(Number);
+      data = data.filter((s) => s.dateObj.getFullYear() === year && s.dateObj.getMonth() + 1 === month);
+    }
+    if (dateFrom) {
+      const start = new Date(dateFrom);
+      start.setHours(0, 0, 0, 0);
+      data = data.filter((s) => s.dateObj >= start);
+    }
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      data = data.filter((s) => s.dateObj <= end);
+    }
+    return data;
+  }, [webhookData, selectedMonth, dateFrom, dateTo]);
+
   const summary = useMemo(() => calculateSummary(filteredRows), [filteredRows]);
 
   const handleExport = () => {
