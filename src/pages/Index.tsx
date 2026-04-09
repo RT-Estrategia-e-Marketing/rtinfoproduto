@@ -7,6 +7,7 @@ import { DailyTable } from "@/components/DailyTable";
 import { SalesCharts } from "@/components/SalesCharts";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { AIChatPanel } from "@/components/AIChatPanel";
+import { SalesAnalysisPanel } from "@/components/SalesAnalysisPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangelogModal } from "@/components/ChangelogModal";
 import { DashboardSkeleton } from "@/components/LoadingSkeleton";
@@ -20,7 +21,8 @@ import {
   type SheetTab,
   type SalesRow,
 } from "@/services/googleSheets";
-import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText } from "lucide-react";
+import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
+import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
