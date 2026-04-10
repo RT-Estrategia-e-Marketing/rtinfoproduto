@@ -1,5 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { SheetInputForm } from "@/components/SheetInputForm";
 import { DashboardFilters } from "@/components/DashboardFilters";
 import { SummaryCards } from "@/components/SummaryCards";
@@ -22,10 +24,13 @@ import {
   type SalesRow,
 } from "@/services/googleSheets";
 import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
-import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap } from "lucide-react";
+import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap, LogOut, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
+  const { user, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
   const [sheetId, setSheetId] = useState<string>("");
   const [allRows, setAllRows] = useState<SalesRow[]>([]);
   const [isLoadingTabs, setIsLoadingTabs] = useState(false);
@@ -159,8 +164,17 @@ const Index = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => navigate("/admin")}>
+                <Settings className="h-3.5 w-3.5" />
+                Admin
+              </Button>
+            )}
             <ChangelogModal />
             <ThemeToggle />
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={signOut} title="Sair">
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>

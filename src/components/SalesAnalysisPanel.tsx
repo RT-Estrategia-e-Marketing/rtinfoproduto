@@ -18,11 +18,11 @@ const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}h`);
 
 const COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+  "hsl(217, 91%, 60%)",
+  "hsl(160, 60%, 45%)",
+  "hsl(30, 95%, 55%)",
+  "hsl(280, 65%, 60%)",
+  "hsl(350, 80%, 55%)",
   "#f97316",
   "#06b6d4",
   "#8b5cf6",
@@ -131,13 +131,15 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
   }, [approved, refunded]);
 
-  // Sales by hour with % of total
+  // Sales by hour with % of total and unique clients
   const salesByHour = useMemo(() => {
     const counts = new Array(24).fill(0);
     const revenue = new Array(24).fill(0);
+    const uniqueByHour: Set<string>[] = Array.from({ length: 24 }, () => new Set());
     for (const s of approved) {
       counts[s.hour]++;
       revenue[s.hour] += s.originalPrice;
+      if (s.buyerName) uniqueByHour[s.hour].add(s.buyerName.toLowerCase().trim());
     }
     const total = approved.length || 1;
     return HOUR_LABELS.map((h, i) => ({
@@ -145,6 +147,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       vendas: counts[i],
       faturamento: revenue[i],
       percentual: parseFloat(((counts[i] / total) * 100).toFixed(1)),
+      clientes: uniqueByHour[i].size,
     }));
   }, [approved]);
 
@@ -359,14 +362,16 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <Tooltip
                   contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                   formatter={(value: number, name: string) => {
-                    if (name === "percentual") return [`${value}%`, "% do Total"];
-                    if (name === "faturamento") return [formatCurrency(value), "Faturamento"];
-                    return [value, "Vendas"];
+                    if (name === "% do Total") return [`${value}%`, "% do Total"];
+                    if (name === "Faturamento") return [formatCurrency(value), "Faturamento"];
+                    if (name === "Clientes Únicos") return [value, "Clientes Únicos"];
+                    return [value, "Tickets"];
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Vendas" />
-                <Bar dataKey="percentual" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} name="% do Total" />
+                <Bar dataKey="vendas" fill="hsl(217, 91%, 60%)" radius={[4, 4, 0, 0]} name="Tickets" />
+                <Bar dataKey="percentual" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} name="% do Total" />
+                <Bar dataKey="clientes" fill="hsl(280, 65%, 60%)" radius={[4, 4, 0, 0]} name="Clientes Únicos" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -433,10 +438,10 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Area yAxisId="left" type="monotone" dataKey="Faturamento" fill="hsl(var(--primary) / 0.1)" stroke="hsl(var(--primary))" />
-              <Line yAxisId="left" type="monotone" dataKey="Investimento" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} />
-              <Bar yAxisId="right" dataKey="Vendas" fill="hsl(var(--chart-2) / 0.6)" radius={[2, 2, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="Clientes Únicos" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={false} />
+              <Area yAxisId="left" type="monotone" dataKey="Faturamento" fill="hsla(217, 91%, 60%, 0.15)" stroke="hsl(217, 91%, 60%)" />
+              <Line yAxisId="left" type="monotone" dataKey="Investimento" stroke="hsl(30, 95%, 55%)" strokeWidth={2} dot={false} />
+              <Bar yAxisId="right" dataKey="Vendas" fill="hsl(160, 60%, 45%)" radius={[2, 2, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="Clientes Únicos" stroke="hsl(280, 65%, 60%)" strokeWidth={2} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
