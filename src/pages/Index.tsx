@@ -24,10 +24,13 @@ import {
   type SalesRow,
 } from "@/services/googleSheets";
 import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
-import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap } from "lucide-react";
+import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap, LogOut, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
+  const { user, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
   const [sheetId, setSheetId] = useState<string>("");
   const [allRows, setAllRows] = useState<SalesRow[]>([]);
   const [isLoadingTabs, setIsLoadingTabs] = useState(false);
