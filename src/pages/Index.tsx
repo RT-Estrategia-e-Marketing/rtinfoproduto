@@ -1,5 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { SheetInputForm } from "@/components/SheetInputForm";
 import { DashboardFilters } from "@/components/DashboardFilters";
 import { SummaryCards } from "@/components/SummaryCards";

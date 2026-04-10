@@ -438,10 +438,10 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Area yAxisId="left" type="monotone" dataKey="Faturamento" fill="hsl(var(--primary) / 0.1)" stroke="hsl(var(--primary))" />
-              <Line yAxisId="left" type="monotone" dataKey="Investimento" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} />
-              <Bar yAxisId="right" dataKey="Vendas" fill="hsl(var(--chart-2) / 0.6)" radius={[2, 2, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="Clientes Únicos" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={false} />
+              <Area yAxisId="left" type="monotone" dataKey="Faturamento" fill="hsla(217, 91%, 60%, 0.15)" stroke="hsl(217, 91%, 60%)" />
+              <Line yAxisId="left" type="monotone" dataKey="Investimento" stroke="hsl(30, 95%, 55%)" strokeWidth={2} dot={false} />
+              <Bar yAxisId="right" dataKey="Vendas" fill="hsl(160, 60%, 45%)" radius={[2, 2, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="Clientes Únicos" stroke="hsl(280, 65%, 60%)" strokeWidth={2} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
