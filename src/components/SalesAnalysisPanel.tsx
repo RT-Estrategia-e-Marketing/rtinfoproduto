@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { type WebhookSale } from "@/services/webhookParser";
 import { type SalesRow, formatCurrency, formatNumber } from "@/services/googleSheets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ComposedChart, Area, Line
@@ -27,31 +28,53 @@ const COLORS = [
   "#8b5cf6",
 ];
 
+const TRACKING_OPTIONS = [
+  { value: "originSck", label: "Origem SCK (BA)" },
+  { value: "utmCampaign", label: "UTM Campaign (BB)" },
+  { value: "utmMedium", label: "UTM Medium (BC)" },
+  { value: "utmSource", label: "UTM Source (BD)" },
+  { value: "utmContent", label: "UTM Content (BE)" },
+] as const;
+
+type TrackingKey = typeof TRACKING_OPTIONS[number]["value"];
+
 export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
+  const [trackingColumn, setTrackingColumn] = useState<TrackingKey>("originSck");
+
   const approved = useMemo(() => webhookData.filter((s) => s.event.includes("APPROVED")), [webhookData]);
   const refunded = useMemo(() => webhookData.filter((s) => s.event.includes("REFUNDED")), [webhookData]);
 
-  // KPIs
+  // KPIs - Faturamento bruto SEM reembolsos, comissão SEM reembolsos
   const kpis = useMemo(() => {
     const totalSales = approved.length;
     const totalRefunds = refunded.length;
-    const totalRevenue = approved.reduce((s, r) => s + r.originalPrice, 0);
-    const totalCommission = approved.reduce((s, r) => s + r.commissionReceived, 0);
-    const totalFees = approved.reduce((s, r) => s + r.platformFee, 0);
-    const totalRefundValue = refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
-    const netRevenue = totalRevenue - totalRefundValue;
-    const avgTicket = totalSales > 0 ? totalRevenue / totalSales : 0;
+    const grossRevenue = approved.reduce((s, r) => s + r.originalPrice, 0);
+    const grossCommission = approved.reduce((s, r) => s + r.commissionReceived, 0);
+    const grossFees = approved.reduce((s, r) => s + r.platformFee, 0);
+    const refundRevenue = refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
+    const refundCommission = refunded.reduce((s, r) => s + Math.abs(r.commissionReceived), 0);
+    const refundFees = refunded.reduce((s, r) => s + r.platformFee, 0);
+    // Líquidos = bruto - reembolsados
+    const netRevenue = grossRevenue - refundRevenue;
+    const netCommission = grossCommission - refundCommission;
+    const netFees = grossFees - Math.abs(refundFees);
+    const avgTicket = totalSales > 0 ? grossRevenue / totalSales : 0;
     const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
     const uniqueBuyers = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
-    return { totalSales, totalRefunds, totalRevenue, totalCommission, totalFees, totalRefundValue, netRevenue, avgTicket, refundRate, uniqueBuyers };
+    return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers };
   }, [approved, refunded]);
 
-  // Product category breakdown
+  // Product category breakdown - group by productId to avoid name mismatch
   const categoryBreakdown = useMemo(() => {
-    const cats = { principal: { sold: 0, refunded: 0, revenue: 0 }, upsell: { sold: 0, refunded: 0, revenue: 0 }, orderbump: { sold: 0, refunded: 0, revenue: 0 } };
+    const cats = {
+      principal: { sold: 0, refunded: 0, revenue: 0, commission: 0 },
+      upsell: { sold: 0, refunded: 0, revenue: 0, commission: 0 },
+      orderbump: { sold: 0, refunded: 0, revenue: 0, commission: 0 },
+    };
     for (const s of approved) {
       cats[s.productCategory].sold++;
       cats[s.productCategory].revenue += s.originalPrice;
+      cats[s.productCategory].commission += s.commissionReceived;
     }
     for (const s of refunded) {
       cats[s.productCategory].refunded++;
@@ -85,21 +108,23 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     return { rows, maxCount };
   }, [approved]);
 
-  // Product ranking (net of refunds)
+  // Product ranking - group by productId to avoid name variations causing splits
   const productRanking = useMemo(() => {
-    const map = new Map<string, { name: string; count: number; revenue: number; commission: number; refunds: number; refundValue: number }>();
+    const map = new Map<string, { id: string; name: string; count: number; revenue: number; commission: number; refunds: number; refundValue: number }>();
     for (const s of approved) {
-      const entry = map.get(s.productName) || { name: s.productName, count: 0, revenue: 0, commission: 0, refunds: 0, refundValue: 0 };
+      const key = s.productId || s.productName;
+      const entry = map.get(key) || { id: s.productId, name: s.productName, count: 0, revenue: 0, commission: 0, refunds: 0, refundValue: 0 };
       entry.count++;
       entry.revenue += s.originalPrice;
       entry.commission += s.commissionReceived;
-      map.set(s.productName, entry);
+      if (!entry.name && s.productName) entry.name = s.productName;
+      map.set(key, entry);
     }
     for (const s of refunded) {
-      const name = s.productName;
-      if (map.has(name)) {
-        map.get(name)!.refunds++;
-        map.get(name)!.refundValue += Math.abs(s.originalPrice);
+      const key = s.productId || s.productName;
+      if (map.has(key)) {
+        map.get(key)!.refunds++;
+        map.get(key)!.refundValue += Math.abs(s.originalPrice);
       }
     }
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
@@ -126,7 +151,6 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       entry.faturamento += s.originalPrice;
       salesByDate.set(key, entry);
     }
-    // Add unique customers
     for (const [key, buyers] of uniqueCustomersPerDay) {
       if (salesByDate.has(key)) salesByDate.get(key)!.clientes = buyers.size;
     }
@@ -157,18 +181,20 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       .sort((a, b) => b.value - a.value);
   }, [approved]);
 
-  // Origin distribution
+  // Origin distribution - dynamic by selected tracking column
   const originDist = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of approved) {
-      const origin = s.originSck || s.trackingSrc || "Direto";
-      map.set(origin, (map.get(origin) || 0) + 1);
+      const value = s[trackingColumn] || "<vazio>";
+      map.set(value, (map.get(value) || 0) + 1);
     }
     return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  }, [approved]);
+      .slice(0, 15);
+  }, [approved, trackingColumn]);
+
+  const principalSold = categoryBreakdown.principal.sold;
 
   return (
     <div className="space-y-6">
@@ -177,13 +203,13 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
         {[
           { label: "Vendas Aprovadas", value: kpis.totalSales, icon: ShoppingCart, format: "int" as const },
           { label: "Clientes Únicos", value: kpis.uniqueBuyers, icon: Users, format: "int" as const },
-          { label: "Faturamento Bruto", value: kpis.totalRevenue, icon: TrendingUp, format: "currency" as const },
-          { label: "Comissão Recebida", value: kpis.totalCommission, icon: Package, format: "currency" as const },
-          { label: "Taxas Plataforma", value: kpis.totalFees, icon: Tag, format: "currency" as const },
+          { label: "Faturamento Bruto", value: kpis.netRevenue, icon: TrendingUp, format: "currency" as const },
+          { label: "Comissão Líquida", value: kpis.netCommission, icon: Package, format: "currency" as const },
+          { label: "Taxas Líquidas", value: kpis.netFees, icon: Tag, format: "currency" as const },
           { label: "Ticket Médio", value: kpis.avgTicket, icon: Clock, format: "currency" as const },
           { label: "Reembolsos", value: kpis.totalRefunds, icon: RefreshCw, format: "int" as const, negative: true },
-          { label: "Valor Reembolsado", value: kpis.totalRefundValue, icon: RefreshCw, format: "currency" as const, negative: true },
-          { label: "Faturamento Líquido", value: kpis.netRevenue, icon: TrendingUp, format: "currency" as const },
+          { label: "Valor Reembolsado", value: kpis.refundRevenue, icon: RefreshCw, format: "currency" as const, negative: true },
+          { label: "Comissão Devolvida", value: kpis.refundCommission, icon: RefreshCw, format: "currency" as const, negative: true },
           { label: "Taxa Reembolso", value: kpis.refundRate, icon: Clock, format: "percent" as const },
         ].map((kpi) => (
           <Card key={kpi.label} className="bg-card border-border">
@@ -218,6 +244,9 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
             ]).map((cat) => {
               const data = categoryBreakdown[cat.key];
               const netTickets = data.sold - data.refunded;
+              const conversionRate = cat.key !== "principal" && principalSold > 0
+                ? ((data.sold / principalSold) * 100)
+                : null;
               return (
                 <div key={cat.key} className="p-4 rounded-lg bg-muted/50 space-y-2">
                   <div className="flex items-center gap-2">
@@ -230,6 +259,13 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                     <div><span className="text-muted-foreground">Líquido:</span> <strong>{netTickets}</strong></div>
                     <div><span className="text-muted-foreground">Faturamento:</span> <strong>{formatCurrency(data.revenue)}</strong></div>
                   </div>
+                  {conversionRate !== null && (
+                    <div className="pt-1 border-t border-border">
+                      <span className="text-xs text-muted-foreground">Conversão vs Principal: </span>
+                      <strong className="text-xs text-primary">{formatNumber(conversionRate, 1)}%</strong>
+                      <span className="text-[10px] text-muted-foreground ml-1">({data.sold}/{principalSold})</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -322,7 +358,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
           <CardContent>
             <div className="space-y-2 max-h-[280px] overflow-y-auto">
               {productRanking.map((p, i) => (
-                <div key={p.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
+                <div key={p.id || p.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
                   <span className="text-lg font-bold text-muted-foreground w-6 text-center">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{p.name}</p>
@@ -330,7 +366,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                       <span>{p.count} vendas</span>
                       <span>Bruto: {formatCurrency(p.revenue)}</span>
                       <span>Comissão: {formatCurrency(p.commission)}</span>
-                      <span>TM: {formatCurrency(p.revenue / p.count)}</span>
+                      <span>TM: {formatCurrency(p.count > 0 ? p.revenue / p.count : 0)}</span>
                       {p.refunds > 0 && <span className="text-destructive">{p.refunds} reemb. ({formatCurrency(p.refundValue)})</span>}
                     </div>
                   </div>
@@ -405,28 +441,41 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
           </Card>
         )}
 
-        {/* Origin / Source */}
-        {originDist.length > 0 && (
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">🎯 Origem das Vendas (Top 10)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {originDist.map((o, i) => (
-                  <div key={o.name} className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-sm flex-1 truncate">{o.name}</span>
-                    <span className="text-sm font-bold">{o.value}</span>
-                    <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${(o.value / (originDist[0]?.value || 1)) * 100}%`, backgroundColor: COLORS[i % COLORS.length] }} />
-                    </div>
+        {/* Origin / Source with selector */}
+        <Card className="bg-card border-border">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm font-semibold">🎯 Origem das Vendas (Top 15)</CardTitle>
+              <Select value={trackingColumn} onValueChange={(v) => setTrackingColumn(v as TrackingKey)}>
+                <SelectTrigger className="w-[200px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRACKING_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[320px] overflow-y-auto">
+              {originDist.map((o, i) => (
+                <div key={o.name} className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                  <span className="text-sm flex-1 truncate">{o.name}</span>
+                  <span className="text-sm font-bold">{o.value}</span>
+                  <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
+                    <div className="h-full rounded-full" style={{ width: `${(o.value / (originDist[0]?.value || 1)) * 100}%`, backgroundColor: COLORS[i % COLORS.length] }} />
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                </div>
+              ))}
+              {originDist.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma origem encontrada</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

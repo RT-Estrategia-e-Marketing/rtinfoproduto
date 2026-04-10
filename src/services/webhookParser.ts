@@ -18,11 +18,16 @@ export interface WebhookSale {
   /** Taxa da plataforma = |originalPrice| - |commissionReceived| */
   platformFee: number;
   paymentType: string;
+  /** BA - purchase_origin_sck */
   originSck: string;
-  trackingSrc: string;
-  trackingSrc2: string;
-  trackingSck: string;
-  trackingSck2: string;
+  /** BB - purchase_origin_utmcampaign */
+  utmCampaign: string;
+  /** BC - purchase_origin_utmmedium */
+  utmMedium: string;
+  /** BD - purchase_origin_utmsource */
+  utmSource: string;
+  /** BE - purchase_origin_content */
+  utmContent: string;
   /** Classificação: "principal" | "upsell" | "orderbump" */
   productCategory: "principal" | "upsell" | "orderbump";
 }
@@ -74,10 +79,10 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
   const colPayment = findCol(["payment_type"]);
   const colOriginSck = findCol(["purchase_origin_sck"]);
   // Tracking columns (BB, BC, BD, BE)
-  const colTrackSrc = findCol(["purchase_tracking_source"]);
-  const colTrackSrc2 = findCol(["purchase_tracking_source2", "tracking_source_2"]);
-  const colTrackSck = findCol(["purchase_tracking_sck"]);
-  const colTrackSck2 = findCol(["purchase_tracking_sck2", "tracking_sck_2"]);
+  const colUtmCampaign = findCol(["purchase_origin_utmcampaign", "utmcampaign"]);
+  const colUtmMedium = findCol(["purchase_origin_utmmedium", "utmmedium"]);
+  const colUtmSource = findCol(["purchase_origin_utmsource", "utmsource"]);
+  const colUtmContent = findCol(["purchase_origin_content", "origin_content"]);
 
   // First pass: build product_id -> product_name map from approved sales
   const idToName = new Map<string, string>();
@@ -127,10 +132,10 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
       platformFee: Math.max(0, platformFee),
       paymentType: (row[colPayment] || "").trim(),
       originSck: (row[colOriginSck] || "").trim(),
-      trackingSrc: (row[colTrackSrc] || "").trim(),
-      trackingSrc2: (row[colTrackSrc2] || "").trim(),
-      trackingSck: (row[colTrackSck] || "").trim(),
-      trackingSck2: (row[colTrackSck2] || "").trim(),
+      utmCampaign: (row[colUtmCampaign] || "").trim(),
+      utmMedium: (row[colUtmMedium] || "").trim(),
+      utmSource: (row[colUtmSource] || "").trim(),
+      utmContent: (row[colUtmContent] || "").trim(),
       productCategory: classifyProduct(productName),
     });
   }
