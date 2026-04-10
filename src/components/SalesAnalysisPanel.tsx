@@ -374,7 +374,6 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <Bar dataKey="clientes" fill="hsl(280, 65%, 60%)" radius={[4, 4, 0, 0]} name="Clientes Únicos" />
               </BarChart>
             </ResponsiveContainer>
-              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
