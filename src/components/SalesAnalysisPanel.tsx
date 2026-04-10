@@ -44,7 +44,6 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const approved = useMemo(() => webhookData.filter((s) => s.event.includes("APPROVED")), [webhookData]);
   const refunded = useMemo(() => webhookData.filter((s) => s.event.includes("REFUNDED")), [webhookData]);
 
-  // KPIs - Faturamento bruto SEM reembolsos, comissão SEM reembolsos
   const kpis = useMemo(() => {
     const totalSales = approved.length;
     const totalRefunds = refunded.length;
@@ -54,17 +53,19 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     const refundRevenue = refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
     const refundCommission = refunded.reduce((s, r) => s + Math.abs(r.commissionReceived), 0);
     const refundFees = refunded.reduce((s, r) => s + r.platformFee, 0);
-    // Líquidos = bruto - reembolsados
     const netRevenue = grossRevenue - refundRevenue;
     const netCommission = grossCommission - refundCommission;
     const netFees = grossFees - Math.abs(refundFees);
-    const avgTicket = totalSales > 0 ? grossRevenue / totalSales : 0;
-    const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
     const uniqueBuyers = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
-    return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers };
+    // Ticket médio por clientes únicos
+    const avgTicket = uniqueBuyers > 0 ? grossRevenue / uniqueBuyers : 0;
+    const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
+    // Clientes únicos que pediram reembolso
+    const uniqueRefundBuyers = new Set(refunded.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
+    return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers, uniqueRefundBuyers };
   }, [approved, refunded]);
 
-  // Product category breakdown - group by productId to avoid name mismatch
+  // Product category breakdown
   const categoryBreakdown = useMemo(() => {
     const cats = {
       principal: { sold: 0, refunded: 0, revenue: 0, commission: 0 },
@@ -108,7 +109,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     return { rows, maxCount };
   }, [approved]);
 
-  // Product ranking - group by productId to avoid name variations causing splits
+  // Product ranking
   const productRanking = useMemo(() => {
     const map = new Map<string, { id: string; name: string; count: number; revenue: number; commission: number; refunds: number; refundValue: number }>();
     for (const s of approved) {
@@ -130,7 +131,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
   }, [approved, refunded]);
 
-  // Sales by hour
+  // Sales by hour with % of total
   const salesByHour = useMemo(() => {
     const counts = new Array(24).fill(0);
     const revenue = new Array(24).fill(0);
@@ -138,7 +139,13 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       counts[s.hour]++;
       revenue[s.hour] += s.originalPrice;
     }
-    return HOUR_LABELS.map((h, i) => ({ hour: h, vendas: counts[i], faturamento: revenue[i] }));
+    const total = approved.length || 1;
+    return HOUR_LABELS.map((h, i) => ({
+      hour: h,
+      vendas: counts[i],
+      faturamento: revenue[i],
+      percentual: parseFloat(((counts[i] / total) * 100).toFixed(1)),
+    }));
   }, [approved]);
 
   // Timeline
@@ -162,26 +169,33 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     const allDates = new Set([...salesByDate.keys(), ...investByDate.keys()]);
     return Array.from(allDates).sort().map((d) => ({
       date: d.slice(5),
-      vendas: salesByDate.get(d)?.vendas || 0,
-      clientes: salesByDate.get(d)?.clientes || 0,
-      faturamento: salesByDate.get(d)?.faturamento || 0,
-      investimento: investByDate.get(d) || 0,
+      Vendas: salesByDate.get(d)?.vendas || 0,
+      "Clientes Únicos": salesByDate.get(d)?.clientes || 0,
+      Faturamento: salesByDate.get(d)?.faturamento || 0,
+      Investimento: investByDate.get(d) || 0,
     }));
   }, [approved, dailyRows, uniqueCustomersPerDay]);
 
-  // Payment type distribution
+  // Payment type distribution with unique customers
   const paymentDist = useMemo(() => {
-    const map = new Map<string, number>();
+    const countMap = new Map<string, number>();
+    const uniqueMap = new Map<string, Set<string>>();
     for (const s of approved) {
       const type = s.paymentType || "Outros";
-      map.set(type, (map.get(type) || 0) + 1);
+      countMap.set(type, (countMap.get(type) || 0) + 1);
+      if (!uniqueMap.has(type)) uniqueMap.set(type, new Set());
+      if (s.buyerName) uniqueMap.get(type)!.add(s.buyerName.toLowerCase().trim());
     }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
+    return Array.from(countMap.entries())
+      .map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        value,
+        uniqueCustomers: uniqueMap.get(name.charAt(0).toLowerCase() + name.slice(1))?.size || uniqueMap.get(name)?.size || 0,
+      }))
       .sort((a, b) => b.value - a.value);
   }, [approved]);
 
-  // Origin distribution - dynamic by selected tracking column
+  // Origin distribution
   const originDist = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of approved) {
@@ -194,7 +208,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       .slice(0, 15);
   }, [approved, trackingColumn]);
 
-  const principalSold = categoryBreakdown.principal.sold;
+  // Conversão líquida: vendas líquidas (sem reembolsos)
+  const principalNet = categoryBreakdown.principal.sold - categoryBreakdown.principal.refunded;
 
   return (
     <div className="space-y-6">
@@ -206,10 +221,10 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
           { label: "Faturamento Bruto", value: kpis.netRevenue, icon: TrendingUp, format: "currency" as const },
           { label: "Comissão Líquida", value: kpis.netCommission, icon: Package, format: "currency" as const },
           { label: "Taxas Líquidas", value: kpis.netFees, icon: Tag, format: "currency" as const },
-          { label: "Ticket Médio", value: kpis.avgTicket, icon: Clock, format: "currency" as const },
-          { label: "Reembolsos", value: kpis.totalRefunds, icon: RefreshCw, format: "int" as const, negative: true },
+          { label: "Ticket Médio (por cliente)", value: kpis.avgTicket, icon: Clock, format: "currency" as const },
+          { label: "Produtos Reembolsados", value: kpis.totalRefunds, icon: RefreshCw, format: "int" as const, negative: true },
+          { label: "Clientes c/ Reembolso", value: kpis.uniqueRefundBuyers, icon: Users, format: "int" as const, negative: true },
           { label: "Valor Reembolsado", value: kpis.refundRevenue, icon: RefreshCw, format: "currency" as const, negative: true },
-          { label: "Comissão Devolvida", value: kpis.refundCommission, icon: RefreshCw, format: "currency" as const, negative: true },
           { label: "Taxa Reembolso", value: kpis.refundRate, icon: Clock, format: "percent" as const },
         ].map((kpi) => (
           <Card key={kpi.label} className="bg-card border-border">
@@ -244,8 +259,9 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
             ]).map((cat) => {
               const data = categoryBreakdown[cat.key];
               const netTickets = data.sold - data.refunded;
-              const conversionRate = cat.key !== "principal" && principalSold > 0
-                ? ((data.sold / principalSold) * 100)
+              // Conversão baseada em vendas líquidas
+              const conversionRate = cat.key !== "principal" && principalNet > 0
+                ? (((data.sold - data.refunded) / principalNet) * 100)
                 : null;
               return (
                 <div key={cat.key} className="p-4 rounded-lg bg-muted/50 space-y-2">
@@ -261,9 +277,9 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                   </div>
                   {conversionRate !== null && (
                     <div className="pt-1 border-t border-border">
-                      <span className="text-xs text-muted-foreground">Conversão vs Principal: </span>
+                      <span className="text-xs text-muted-foreground">Conversão vs Principal (líquido): </span>
                       <strong className="text-xs text-primary">{formatNumber(conversionRate, 1)}%</strong>
-                      <span className="text-[10px] text-muted-foreground ml-1">({data.sold}/{principalSold})</span>
+                      <span className="text-[10px] text-muted-foreground ml-1">({data.sold - data.refunded}/{principalNet})</span>
                     </div>
                   )}
                 </div>
@@ -342,9 +358,15 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number, name: string) => [name === "faturamento" ? formatCurrency(value) : value, name === "faturamento" ? "Faturamento" : "Vendas"]}
+                  formatter={(value: number, name: string) => {
+                    if (name === "percentual") return [`${value}%`, "% do Total"];
+                    if (name === "faturamento") return [formatCurrency(value), "Faturamento"];
+                    return [value, "Vendas"];
+                  }}
                 />
-                <Bar dataKey="vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="vendas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Vendas" />
+                <Bar dataKey="percentual" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} name="% do Total" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -406,15 +428,15 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
               <Tooltip
                 contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, name: string) => {
-                  if (name === "vendas" || name === "clientes") return [value, name === "vendas" ? "Vendas" : "Clientes Únicos"];
-                  return [formatCurrency(value), name === "faturamento" ? "Faturamento" : "Investimento"];
+                  if (name === "Vendas" || name === "Clientes Únicos") return [value, name];
+                  return [formatCurrency(value), name];
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Area yAxisId="left" type="monotone" dataKey="faturamento" fill="hsl(var(--primary) / 0.1)" stroke="hsl(var(--primary))" name="Faturamento" />
-              <Line yAxisId="left" type="monotone" dataKey="investimento" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} name="Investimento" />
-              <Bar yAxisId="right" dataKey="vendas" fill="hsl(var(--chart-2) / 0.6)" radius={[2, 2, 0, 0]} name="Vendas" />
-              <Line yAxisId="right" type="monotone" dataKey="clientes" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={false} name="Clientes Únicos" />
+              <Area yAxisId="left" type="monotone" dataKey="Faturamento" fill="hsl(var(--primary) / 0.1)" stroke="hsl(var(--primary))" />
+              <Line yAxisId="left" type="monotone" dataKey="Investimento" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} />
+              <Bar yAxisId="right" dataKey="Vendas" fill="hsl(var(--chart-2) / 0.6)" radius={[2, 2, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="Clientes Únicos" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -428,12 +450,15 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
               <CardTitle className="text-sm font-semibold">💳 Métodos de Pagamento</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-3 flex-wrap">
+              <div className="space-y-2">
                 {paymentDist.map((p, i) => (
-                  <div key={p.name} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                    <span className="text-sm font-medium">{p.name}</span>
-                    <span className="text-xs text-muted-foreground">({p.value})</span>
+                  <div key={p.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-sm font-medium flex-1">{p.name}</span>
+                    <div className="text-right">
+                      <span className="text-sm font-bold">{p.value} vendas</span>
+                      <span className="text-[11px] text-muted-foreground ml-2">({p.uniqueCustomers} clientes únicos)</span>
+                    </div>
                   </div>
                 ))}
               </div>
