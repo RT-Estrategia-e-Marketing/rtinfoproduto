@@ -40,6 +40,7 @@ type TrackingKey = typeof TRACKING_OPTIONS[number]["value"];
 
 export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const [trackingColumn, setTrackingColumn] = useState<TrackingKey>("originSck");
+  const [originMetric, setOriginMetric] = useState<"tickets" | "revenue" | "clients">("tickets");
 
   const approved = useMemo(() => webhookData.filter((s) => s.event.includes("APPROVED")), [webhookData]);
   const refunded = useMemo(() => webhookData.filter((s) => s.event.includes("REFUNDED")), [webhookData]);
