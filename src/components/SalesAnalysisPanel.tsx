@@ -131,7 +131,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
   }, [approved, refunded]);
 
-  // Sales by hour with % of total and unique clients
+  // Sales by hour with % of total, unique clients and % of unique clients
   const salesByHour = useMemo(() => {
     const counts = new Array(24).fill(0);
     const revenue = new Array(24).fill(0);
@@ -142,12 +142,14 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       if (s.buyerName) uniqueByHour[s.hour].add(s.buyerName.toLowerCase().trim());
     }
     const total = approved.length || 1;
+    const totalUniqueClients = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size || 1;
     return HOUR_LABELS.map((h, i) => ({
       hour: h,
       vendas: counts[i],
       faturamento: revenue[i],
       percentual: parseFloat(((counts[i] / total) * 100).toFixed(1)),
       clientes: uniqueByHour[i].size,
+      percentualClientes: parseFloat(((uniqueByHour[i].size / totalUniqueClients) * 100).toFixed(1)),
     }));
   }, [approved]);
 
