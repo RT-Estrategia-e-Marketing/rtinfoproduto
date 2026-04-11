@@ -364,7 +364,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <Tooltip
                   contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                   formatter={(value: number, name: string) => {
-                    if (name === "% do Total") return [`${value}%`, "% do Total"];
+                    if (name === "% Tickets") return [`${value}%`, "% Tickets do Total"];
+                    if (name === "% Clientes") return [`${value}%`, "% Clientes do Total"];
                     if (name === "Faturamento") return [formatCurrency(value), "Faturamento"];
                     if (name === "Clientes Únicos") return [value, "Clientes Únicos"];
                     return [value, "Tickets"];
@@ -372,8 +373,9 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="vendas" fill="hsl(217, 91%, 60%)" radius={[4, 4, 0, 0]} name="Tickets" />
-                <Bar dataKey="percentual" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} name="% do Total" />
+                <Bar dataKey="percentual" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} name="% Tickets" />
                 <Bar dataKey="clientes" fill="hsl(280, 65%, 60%)" radius={[4, 4, 0, 0]} name="Clientes Únicos" />
+                <Bar dataKey="percentualClientes" fill="hsl(30, 95%, 55%)" radius={[4, 4, 0, 0]} name="% Clientes" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
