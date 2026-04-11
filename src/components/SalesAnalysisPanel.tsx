@@ -201,18 +201,32 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       .sort((a, b) => b.value - a.value);
   }, [approved]);
 
-  // Origin distribution
+  // Origin distribution with tickets, revenue, and unique clients
   const originDist = useMemo(() => {
-    const map = new Map<string, number>();
+    const ticketMap = new Map<string, number>();
+    const revenueMap = new Map<string, number>();
+    const clientMap = new Map<string, Set<string>>();
     for (const s of approved) {
       const value = s[trackingColumn] || "<vazio>";
-      map.set(value, (map.get(value) || 0) + 1);
+      ticketMap.set(value, (ticketMap.get(value) || 0) + 1);
+      revenueMap.set(value, (revenueMap.get(value) || 0) + s.originalPrice);
+      if (!clientMap.has(value)) clientMap.set(value, new Set());
+      if (s.buyerName) clientMap.get(value)!.add(s.buyerName.toLowerCase().trim());
     }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+    return Array.from(ticketMap.entries())
+      .map(([name]) => ({
+        name,
+        tickets: ticketMap.get(name) || 0,
+        revenue: revenueMap.get(name) || 0,
+        clients: clientMap.get(name)?.size || 0,
+      }))
+      .sort((a, b) => {
+        if (originMetric === "revenue") return b.revenue - a.revenue;
+        if (originMetric === "clients") return b.clients - a.clients;
+        return b.tickets - a.tickets;
+      })
       .slice(0, 15);
-  }, [approved, trackingColumn]);
+  }, [approved, trackingColumn, originMetric]);
 
   // Conversão líquida: vendas líquidas (sem reembolsos)
   const principalNet = categoryBreakdown.principal.sold - categoryBreakdown.principal.refunded;
