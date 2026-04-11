@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { useProjects } from "@/hooks/useProjects";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { ArrowLeft, UserPlus, Trash2, Shield, User } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Shield, User, FolderOpen } from "lucide-react";
 
 interface UserEntry {
   id: string;
@@ -19,25 +21,23 @@ interface UserEntry {
 export default function Admin() {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { projects, getUserAccess, setUserAccess, removeUserAccess } = useProjects();
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"admin" | "user">("user");
   const [creating, setCreating] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [userProjectIds, setUserProjectIds] = useState<string[]>([]);
+  const [loadingAccess, setLoadingAccess] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && (!user || !isAdmin)) {
-      navigate("/");
-    }
+    if (!authLoading && (!user || !isAdmin)) navigate("/");
   }, [user, isAdmin, authLoading, navigate]);
 
   const loadUsers = useCallback(async () => {
-    const { data, error } = await supabase.functions.invoke("admin-users", {
-      method: "GET",
-    });
-    if (!error && data?.users) {
-      setUsers(data.users);
-    }
+    const { data, error } = await supabase.functions.invoke("admin-users", { method: "GET" });
+    if (!error && data?.users) setUsers(data.users);
   }, []);
 
   useEffect(() => {
@@ -55,10 +55,8 @@ export default function Admin() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success(`Usuário ${newEmail} criado com sucesso!`);
-      setNewEmail("");
-      setNewPassword("");
-      setNewRole("user");
+      toast.success(`Usuário ${newEmail} criado!`);
+      setNewEmail(""); setNewPassword(""); setNewRole("user");
       loadUsers();
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar usuário");
@@ -83,26 +81,58 @@ export default function Admin() {
     }
   };
 
+  const handleSelectUser = async (userId: string) => {
+    if (selectedUserId === userId) { setSelectedUserId(null); return; }
+    setSelectedUserId(userId);
+    setLoadingAccess(true);
+    try {
+      // Load all project access for this user across all projects
+      const { data } = await supabase.from("user_project_access").select("project_id").eq("user_id", userId);
+      setUserProjectIds((data || []).map((d: any) => d.project_id));
+    } catch {
+      setUserProjectIds([]);
+    } finally {
+      setLoadingAccess(false);
+    }
+  };
+
+  const handleToggleProjectAccess = async (projectId: string, checked: boolean) => {
+    if (!selectedUserId) return;
+    try {
+      if (checked) {
+        await setUserAccess(selectedUserId, projectId);
+        setUserProjectIds((prev) => [...prev, projectId]);
+      } else {
+        await removeUserAccess(selectedUserId, projectId);
+        setUserProjectIds((prev) => prev.filter((id) => id !== projectId));
+      }
+      toast.success("Acesso atualizado");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar acesso");
+    }
+  };
+
   if (authLoading) return null;
+
+  const selectedUser = users.find((u) => u.id === selectedUserId);
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="gap-1.5">
-            <ArrowLeft className="h-4 w-4" />
-            Voltar
+          <Button variant="ghost" size="sm" onClick={() => navigate("/projects")} className="gap-1.5">
+            <ArrowLeft className="h-4 w-4" /> Voltar
           </Button>
           <h1 className="text-lg font-heading font-bold">Painel Administrativo</h1>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6 max-w-2xl">
+        {/* Create User */}
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-base font-heading flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
-              Criar Novo Usuário
+              <UserPlus className="h-5 w-5" /> Criar Novo Usuário
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -121,9 +151,7 @@ export default function Admin() {
                 <div className="space-y-1 flex-1">
                   <label className="text-xs text-muted-foreground">Papel</label>
                   <Select value={newRole} onValueChange={(v) => setNewRole(v as "admin" | "user")}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">Usuário</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
@@ -139,23 +167,59 @@ export default function Admin() {
           </CardContent>
         </Card>
 
+        {/* Users List */}
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-base font-heading">Usuários Cadastrados</CardTitle>
+            <p className="text-xs text-muted-foreground">Clique em um usuário para gerenciar o acesso aos projetos</p>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {users.map((u) => (
-                <div key={u.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  {u.role === "admin" ? <Shield className="h-4 w-4 text-primary" /> : <User className="h-4 w-4 text-muted-foreground" />}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{u.email}</p>
-                    <p className="text-[11px] text-muted-foreground">{u.role} · Criado em {new Date(u.created_at).toLocaleDateString("pt-BR")}</p>
+                <div key={u.id}>
+                  <div
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                      selectedUserId === u.id ? "bg-primary/10 border border-primary/30" : "bg-muted/50 hover:bg-muted"
+                    }`}
+                    onClick={() => u.role !== "admin" && handleSelectUser(u.id)}
+                  >
+                    {u.role === "admin" ? <Shield className="h-4 w-4 text-primary" /> : <User className="h-4 w-4 text-muted-foreground" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{u.email}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {u.role === "admin" ? "Admin (acesso total)" : "Usuário"} · {new Date(u.created_at).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    {u.id !== user?.id && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(u.id, u.email); }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                  {u.id !== user?.id && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(u.id, u.email)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+
+                  {/* Project Access Panel */}
+                  {selectedUserId === u.id && u.role !== "admin" && (
+                    <div className="ml-8 mt-2 p-3 rounded-lg bg-muted/30 border border-border space-y-2 animate-fade-in">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs font-semibold">Projetos acessíveis por {u.email}</span>
+                      </div>
+                      {loadingAccess ? (
+                        <p className="text-xs text-muted-foreground">Carregando...</p>
+                      ) : projects.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Nenhum projeto criado ainda</p>
+                      ) : (
+                        projects.map((p) => (
+                          <div key={p.id} className="flex items-center gap-2">
+                            <Checkbox
+                              checked={userProjectIds.includes(p.id)}
+                              onCheckedChange={(checked) => handleToggleProjectAccess(p.id, !!checked)}
+                            />
+                            <span className="text-sm">{p.name}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
