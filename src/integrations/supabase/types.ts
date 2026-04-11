@@ -14,6 +14,97 @@ export type Database = {
   }
   public: {
     Tables: {
+      project_products: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          product_id: string
+          product_name: string
+          project_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          product_id: string
+          product_name: string
+          project_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          product_name?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_products_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          sheet_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          sheet_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          sheet_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_project_access: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_project_access_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string

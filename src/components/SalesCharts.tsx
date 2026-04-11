@@ -1,25 +1,14 @@
 import { useMemo } from "react";
 import { type SalesRow, formatCurrency } from "@/services/googleSheets";
+import { type WebhookSale } from "@/services/webhookParser";
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area,
+  PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
 
 interface SalesChartsProps {
   rows: SalesRow[];
+  webhookData?: WebhookSale[];
 }
 
 const CHART_TOOLTIP_STYLE = {
@@ -38,7 +27,7 @@ function ChartCard({ title, children, className = "" }: { title: string; childre
   );
 }
 
-export function SalesCharts({ rows }: SalesChartsProps) {
+export function SalesCharts({ rows, webhookData = [] }: SalesChartsProps) {
   const chartData = useMemo(() => rows.map((r) => ({
     date: r.date.slice(0, 5),
     faturamento: r.grossRevenue,
@@ -48,6 +37,27 @@ export function SalesCharts({ rows }: SalesChartsProps) {
     roas: r.roas,
     tickets: r.tickets,
   })), [rows]);
+
+  // Daily products sold and unique clients from webhook data
+  const dailyProductsClients = useMemo(() => {
+    if (webhookData.length === 0) return null;
+    const approved = webhookData.filter((s) => s.event.includes("APPROVED"));
+    const byDate = new Map<string, { products: number; clients: Set<string> }>();
+    for (const s of approved) {
+      const key = s.dateObj.toISOString().slice(0, 10);
+      if (!byDate.has(key)) byDate.set(key, { products: 0, clients: new Set() });
+      const entry = byDate.get(key)!;
+      entry.products++;
+      if (s.buyerName) entry.clients.add(s.buyerName.toLowerCase().trim());
+    }
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({
+        date: date.slice(5),
+        "Produtos Vendidos": data.products,
+        "Clientes Únicos": data.clients.size,
+      }));
+  }, [webhookData]);
 
   const cumulativeData = useMemo(() => {
     let acc = 0;
@@ -149,17 +159,34 @@ export function SalesCharts({ rows }: SalesChartsProps) {
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Tickets Diários">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-            <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
-            <Bar dataKey="tickets" name="Tickets" fill="hsl(var(--chart-purple))" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {/* Products Sold & Unique Clients Daily */}
+      {dailyProductsClients && dailyProductsClients.length > 0 ? (
+        <ChartCard title="Produtos Vendidos x Clientes Únicos (Diário)">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={dailyProductsClients} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Produtos Vendidos" fill="hsl(var(--chart-blue))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Clientes Únicos" fill="hsl(var(--chart-green))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      ) : (
+        <ChartCard title="Tickets Diários">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Bar dataKey="tickets" name="Tickets" fill="hsl(var(--chart-purple))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
     </div>
   );
 }

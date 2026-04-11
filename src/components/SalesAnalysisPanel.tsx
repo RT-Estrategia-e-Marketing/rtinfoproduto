@@ -40,6 +40,7 @@ type TrackingKey = typeof TRACKING_OPTIONS[number]["value"];
 
 export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const [trackingColumn, setTrackingColumn] = useState<TrackingKey>("originSck");
+  const [originMetric, setOriginMetric] = useState<"tickets" | "revenue" | "clients">("tickets");
 
   const approved = useMemo(() => webhookData.filter((s) => s.event.includes("APPROVED")), [webhookData]);
   const refunded = useMemo(() => webhookData.filter((s) => s.event.includes("REFUNDED")), [webhookData]);
@@ -131,7 +132,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
   }, [approved, refunded]);
 
-  // Sales by hour with % of total and unique clients
+  // Sales by hour with % of total, unique clients and % of unique clients
   const salesByHour = useMemo(() => {
     const counts = new Array(24).fill(0);
     const revenue = new Array(24).fill(0);
@@ -142,12 +143,14 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       if (s.buyerName) uniqueByHour[s.hour].add(s.buyerName.toLowerCase().trim());
     }
     const total = approved.length || 1;
+    const totalUniqueClients = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size || 1;
     return HOUR_LABELS.map((h, i) => ({
       hour: h,
       vendas: counts[i],
       faturamento: revenue[i],
       percentual: parseFloat(((counts[i] / total) * 100).toFixed(1)),
       clientes: uniqueByHour[i].size,
+      percentualClientes: parseFloat(((uniqueByHour[i].size / totalUniqueClients) * 100).toFixed(1)),
     }));
   }, [approved]);
 
@@ -198,18 +201,32 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       .sort((a, b) => b.value - a.value);
   }, [approved]);
 
-  // Origin distribution
+  // Origin distribution with tickets, revenue, and unique clients
   const originDist = useMemo(() => {
-    const map = new Map<string, number>();
+    const ticketMap = new Map<string, number>();
+    const revenueMap = new Map<string, number>();
+    const clientMap = new Map<string, Set<string>>();
     for (const s of approved) {
       const value = s[trackingColumn] || "<vazio>";
-      map.set(value, (map.get(value) || 0) + 1);
+      ticketMap.set(value, (ticketMap.get(value) || 0) + 1);
+      revenueMap.set(value, (revenueMap.get(value) || 0) + s.originalPrice);
+      if (!clientMap.has(value)) clientMap.set(value, new Set());
+      if (s.buyerName) clientMap.get(value)!.add(s.buyerName.toLowerCase().trim());
     }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+    return Array.from(ticketMap.entries())
+      .map(([name]) => ({
+        name,
+        tickets: ticketMap.get(name) || 0,
+        revenue: revenueMap.get(name) || 0,
+        clients: clientMap.get(name)?.size || 0,
+      }))
+      .sort((a, b) => {
+        if (originMetric === "revenue") return b.revenue - a.revenue;
+        if (originMetric === "clients") return b.clients - a.clients;
+        return b.tickets - a.tickets;
+      })
       .slice(0, 15);
-  }, [approved, trackingColumn]);
+  }, [approved, trackingColumn, originMetric]);
 
   // Conversão líquida: vendas líquidas (sem reembolsos)
   const principalNet = categoryBreakdown.principal.sold - categoryBreakdown.principal.refunded;
@@ -362,7 +379,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <Tooltip
                   contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                   formatter={(value: number, name: string) => {
-                    if (name === "% do Total") return [`${value}%`, "% do Total"];
+                    if (name === "% Tickets") return [`${value}%`, "% Tickets do Total"];
+                    if (name === "% Clientes") return [`${value}%`, "% Clientes do Total"];
                     if (name === "Faturamento") return [formatCurrency(value), "Faturamento"];
                     if (name === "Clientes Únicos") return [value, "Clientes Únicos"];
                     return [value, "Tickets"];
@@ -370,8 +388,9 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="vendas" fill="hsl(217, 91%, 60%)" radius={[4, 4, 0, 0]} name="Tickets" />
-                <Bar dataKey="percentual" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} name="% do Total" />
+                <Bar dataKey="percentual" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} name="% Tickets" />
                 <Bar dataKey="clientes" fill="hsl(280, 65%, 60%)" radius={[4, 4, 0, 0]} name="Clientes Únicos" />
+                <Bar dataKey="percentualClientes" fill="hsl(30, 95%, 55%)" radius={[4, 4, 0, 0]} name="% Clientes" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -474,32 +493,59 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
         {/* Origin / Source with selector */}
         <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm font-semibold">🎯 Origem das Vendas (Top 15)</CardTitle>
-              <Select value={trackingColumn} onValueChange={(v) => setTrackingColumn(v as TrackingKey)}>
-                <SelectTrigger className="w-[200px] h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRACKING_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-sm font-semibold">🎯 Origem das Vendas (Top 15)</CardTitle>
+                <Select value={trackingColumn} onValueChange={(v) => setTrackingColumn(v as TrackingKey)}>
+                  <SelectTrigger className="w-[200px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRACKING_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-1">
+                {([
+                  { key: "tickets" as const, label: "Tickets" },
+                  { key: "revenue" as const, label: "Faturamento" },
+                  { key: "clients" as const, label: "Clientes Únicos" },
+                ]).map((m) => (
+                  <button
+                    key={m.key}
+                    onClick={() => setOriginMetric(m.key)}
+                    className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                      originMetric === m.key
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-[320px] overflow-y-auto">
-              {originDist.map((o, i) => (
-                <div key={o.name} className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  <span className="text-sm flex-1 truncate">{o.name}</span>
-                  <span className="text-sm font-bold">{o.value}</span>
-                  <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
-                    <div className="h-full rounded-full" style={{ width: `${(o.value / (originDist[0]?.value || 1)) * 100}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+              {originDist.map((o, i) => {
+                const displayValue = originMetric === "revenue" ? o.revenue : originMetric === "clients" ? o.clients : o.tickets;
+                const maxValue = originDist[0] ? (originMetric === "revenue" ? originDist[0].revenue : originMetric === "clients" ? originDist[0].clients : originDist[0].tickets) : 1;
+                return (
+                  <div key={o.name} className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-sm flex-1 truncate">{o.name}</span>
+                    <span className="text-sm font-bold">
+                      {originMetric === "revenue" ? formatCurrency(displayValue) : displayValue}
+                    </span>
+                    <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
+                      <div className="h-full rounded-full" style={{ width: `${(displayValue / (maxValue || 1)) * 100}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {originDist.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">Nenhuma origem encontrada</p>
               )}
