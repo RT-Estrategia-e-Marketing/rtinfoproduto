@@ -151,3 +151,49 @@ export async function fetchWebhookData(sheetId: string): Promise<WebhookSale[]> 
   const csv = await res.text();
   return parseWebhookRows(csv);
 }
+
+/** Lightweight fetch: only grabs event, product_id, product_name columns for fast product detection */
+export async function fetchProductList(sheetId: string): Promise<{ productId: string; productName: string; count: number }[]> {
+  // Use Google Visualization query to fetch only columns we need (much faster)
+  const query = encodeURIComponent("select C,I,J");
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent("webhooks_pagamentos")}&tq=${query}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Não foi possível carregar a aba webhooks_pagamentos");
+  const csv = await res.text();
+
+  const parsed = Papa.parse(csv, { header: true, skipEmptyLines: true, transformHeader: (h: string) => h.trim() });
+  const headers = parsed.meta.fields || [];
+  
+  const findCol = (partials: string[]): string => {
+    for (const p of partials) {
+      const found = headers.find((h) => h.toLowerCase().includes(p.toLowerCase()));
+      if (found) return found;
+    }
+    return "";
+  };
+
+  const colEvent = findCol(["event"]);
+  const colProductId = findCol(["product_id"]);
+  const colProductName = findCol(["product_name"]);
+
+  const productMap = new Map<string, { name: string; count: number }>();
+
+  for (const row of parsed.data as Record<string, string>[]) {
+    const event = (row[colEvent] || "").trim();
+    if (!event.includes("APPROVED")) continue;
+    const productId = (row[colProductId] || "").trim();
+    const productName = (row[colProductName] || "").trim();
+    if (!productId && !productName) continue;
+    const key = productId || productName;
+    const existing = productMap.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      productMap.set(key, { name: productName || `Produto ${productId}`, count: 1 });
+    }
+  }
+
+  return Array.from(productMap.entries())
+    .map(([id, info]) => ({ productId: id, productName: info.name, count: info.count }))
+    .sort((a, b) => b.count - a.count);
+}
