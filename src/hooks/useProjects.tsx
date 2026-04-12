@@ -35,25 +35,29 @@ export function useProjects() {
     loadProjects();
   }, [loadProjects]);
 
-  const createProject = async (name: string, sheetId: string) => {
-    const { data, error } = await supabase.from("projects").insert({ name, sheet_id: sheetId, created_by: user!.id }).select().single();
+  const createProject = useCallback(async (name: string, sheetId: string) => {
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({ name, sheet_id: sheetId, created_by: user!.id })
+      .select()
+      .single();
     if (error) throw error;
     await loadProjects();
     return data as Project;
-  };
+  }, [user, loadProjects]);
 
-  const deleteProject = async (id: string) => {
+  const deleteProject = useCallback(async (id: string) => {
     const { error } = await supabase.from("projects").delete().eq("id", id);
     if (error) throw error;
     await loadProjects();
-  };
+  }, [loadProjects]);
 
-  const getProducts = async (projectId: string): Promise<ProjectProduct[]> => {
+  const getProducts = useCallback(async (projectId: string): Promise<ProjectProduct[]> => {
     const { data } = await supabase.from("project_products").select("*").eq("project_id", projectId);
     return (data as ProjectProduct[]) || [];
-  };
+  }, []);
 
-  const saveProducts = async (projectId: string, products: Omit<ProjectProduct, "id" | "project_id">[]) => {
+  const saveProducts = useCallback(async (projectId: string, products: Omit<ProjectProduct, "id" | "project_id">[]) => {
     await supabase.from("project_products").delete().eq("project_id", projectId);
     if (products.length > 0) {
       const { error } = await supabase.from("project_products").insert(
@@ -61,20 +65,20 @@ export function useProjects() {
       );
       if (error) throw error;
     }
-  };
+  }, []);
 
-  const getUserAccess = async (projectId: string) => {
+  const getUserAccess = useCallback(async (projectId: string) => {
     const { data } = await supabase.from("user_project_access").select("*").eq("project_id", projectId);
     return data || [];
-  };
+  }, []);
 
-  const setUserAccess = async (userId: string, projectId: string) => {
+  const setUserAccess = useCallback(async (userId: string, projectId: string) => {
     await supabase.from("user_project_access").insert({ user_id: userId, project_id: projectId });
-  };
+  }, []);
 
-  const removeUserAccess = async (userId: string, projectId: string) => {
+  const removeUserAccess = useCallback(async (userId: string, projectId: string) => {
     await supabase.from("user_project_access").delete().eq("user_id", userId).eq("project_id", projectId);
-  };
+  }, []);
 
   return { projects, loading, createProject, deleteProject, getProducts, saveProducts, getUserAccess, setUserAccess, removeUserAccess, reload: loadProjects };
 }
