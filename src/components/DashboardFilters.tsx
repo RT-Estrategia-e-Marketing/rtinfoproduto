@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Download, CalendarIcon, RefreshCw } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfDay, subDays, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,8 @@ interface DashboardFiltersProps {
   isLoading: boolean;
 }
 
+type QuickPreset = "hoje" | "ontem" | "7dias" | "mes";
+
 export function DashboardFilters({
   months,
   selectedMonth,
@@ -32,8 +34,40 @@ export function DashboardFilters({
   onRefresh,
   isLoading,
 }: DashboardFiltersProps) {
+
+  const applyPreset = (preset: QuickPreset) => {
+    const today = startOfDay(new Date());
+    onMonthChange("all");
+    switch (preset) {
+      case "hoje":
+        onDateFromChange(today);
+        onDateToChange(today);
+        break;
+      case "ontem": {
+        const yesterday = subDays(today, 1);
+        onDateFromChange(yesterday);
+        onDateToChange(yesterday);
+        break;
+      }
+      case "7dias":
+        onDateFromChange(subDays(today, 6));
+        onDateToChange(today);
+        break;
+      case "mes":
+        onDateFromChange(startOfMonth(today));
+        onDateToChange(today);
+        break;
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => applyPreset("hoje")} className="text-xs">Hoje</Button>
+        <Button variant="outline" size="sm" onClick={() => applyPreset("ontem")} className="text-xs">Ontem</Button>
+        <Button variant="outline" size="sm" onClick={() => applyPreset("7dias")} className="text-xs">Últimos 7 dias</Button>
+        <Button variant="outline" size="sm" onClick={() => applyPreset("mes")} className="text-xs">Mês Atual</Button>
+      </div>
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <Select value={selectedMonth} onValueChange={onMonthChange}>
