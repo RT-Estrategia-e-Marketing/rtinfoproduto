@@ -23,6 +23,7 @@ import {
 } from "@/services/googleSheets";
 import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
 import { fetchOldData } from "@/services/oldDataParser";
+import { getLocalDateKey } from "@/services/dateUtils";
 import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap, LogOut, Settings, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,7 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
   const dayMap = new Map<string, { dateObj: Date; dayOfWeek: string; approved: WebhookSale[]; refunded: WebhookSale[] }>();
 
   for (const sale of sales) {
-    const key = sale.dateObj.toISOString().slice(0, 10);
+    const key = getLocalDateKey(sale.dateObj);
     if (!dayMap.has(key)) {
       const d = new Date(sale.dateObj.getFullYear(), sale.dateObj.getMonth(), sale.dateObj.getDate());
       dayMap.set(key, { dateObj: d, dayOfWeek: DAY_LABELS_SHORT[d.getDay()], approved: [], refunded: [] });

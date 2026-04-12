@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { getLocalDateKey } from "@/services/dateUtils";
 import { type WebhookSale } from "@/services/webhookParser";
 import { type SalesRow, formatCurrency, formatNumber } from "@/services/googleSheets";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,7 +89,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const uniqueCustomersPerDay = useMemo(() => {
     const map = new Map<string, Set<string>>();
     for (const s of approved) {
-      const key = s.dateObj.toISOString().slice(0, 10);
+      const key = getLocalDateKey(s.dateObj);
       if (!map.has(key)) map.set(key, new Set());
       if (s.buyerName) map.get(key)!.add(s.buyerName.toLowerCase().trim());
     }
@@ -158,7 +159,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const timelineData = useMemo(() => {
     const salesByDate = new Map<string, { vendas: number; faturamento: number; clientes: number }>();
     for (const s of approved) {
-      const key = s.dateObj.toISOString().slice(0, 10);
+      const key = getLocalDateKey(s.dateObj);
       const entry = salesByDate.get(key) || { vendas: 0, faturamento: 0, clientes: 0 };
       entry.vendas++;
       entry.faturamento += s.originalPrice;
@@ -169,7 +170,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     }
     const investByDate = new Map<string, number>();
     for (const r of dailyRows) {
-      const key = r.dateObj.toISOString().slice(0, 10);
+      const key = getLocalDateKey(r.dateObj);
       investByDate.set(key, (investByDate.get(key) || 0) + r.investment);
     }
     const allDates = new Set([...salesByDate.keys(), ...investByDate.keys()]);
