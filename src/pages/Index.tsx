@@ -78,8 +78,13 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
   const rows: SalesRow[] = [];
   for (const [key, data] of dayMap) {
     const tickets = data.approved.length;
-    const grossRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0);
-    const fees = data.approved.reduce((s, r) => s + r.platformFee, 0);
+    const approvedRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0);
+    const approvedFees = data.approved.reduce((s, r) => s + r.platformFee, 0);
+    // Subtract refunded amounts
+    const refundedRevenue = data.refunded.reduce((s, r) => s + r.originalPrice, 0);
+    const refundedFees = data.refunded.reduce((s, r) => s + r.platformFee, 0);
+    const grossRevenue = approvedRevenue - refundedRevenue;
+    const fees = approvedFees - refundedFees;
     const grossResult = grossRevenue - fees;
     const investment = investMap.get(key) || 0;
     const realProfit = grossResult - investment;
