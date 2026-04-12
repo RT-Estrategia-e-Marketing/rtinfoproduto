@@ -254,7 +254,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <kpi.icon className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-[11px] text-muted-foreground">{kpi.label}</span>
               </div>
-              <p className={`text-lg font-bold ${"negative" in kpi && kpi.negative ? "text-destructive" : ""}`}>
+              <p className={`text-lg font-bold ${"negative" in kpi && kpi.negative ? "text-destructive" : "warning" in kpi && kpi.warning ? "text-yellow-600 dark:text-yellow-400" : ""}`}>
                 {kpi.format === "currency"
                   ? formatCurrency(kpi.value)
                   : kpi.format === "percent"
