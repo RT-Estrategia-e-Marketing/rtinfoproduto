@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,9 +24,39 @@ import {
   type SalesRow,
 } from "@/services/googleSheets";
 import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
+import { fetchOldData } from "@/services/oldDataParser";
 import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap, LogOut, Settings, ArrowLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+
+const WEBHOOK_CUTOFF = new Date(2026, 3, 1); // 01/04/2026
+
+/** Fetch the last update timestamp from cell L4 of current month tab */
+async function fetchTrafficUpdateTime(sheetId: string): Promise<string | null> {
+  const now = new Date();
+  const monthNames = [
+    "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+    "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
+  ];
+  const tabName = `${monthNames[now.getMonth()]} ${String(now.getFullYear()).slice(-2)}`;
+  const query = encodeURIComponent("select L limit 4");
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}&tq=${query}`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const csv = await res.text();
+    const lines = csv.split("\n").filter(Boolean);
+    // L4 = row index 3 (0-indexed after header), but with header=true row 4 is line[3]
+    // With raw CSV, line[0] is header, line[3] is row 4
+    if (lines.length >= 4) {
+      const val = lines[3].replace(/^"|"$/g, "").trim();
+      if (val && val.length > 5) return val;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 const Index = () => {
   const { user, isAdmin, signOut } = useAuth();
@@ -41,43 +71,73 @@ const Index = () => {
   const [tabs, setTabs] = useState<SheetTab[]>([]);
   const [webhookData, setWebhookData] = useState<WebhookSale[]>([]);
   const [productClassifications, setProductClassifications] = useState<ProjectProduct[]>([]);
+  const [trafficUpdateTime, setTrafficUpdateTime] = useState<string | null>(null);
 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
 
-  // Auto-connect when project is available
+  // Track if data was already loaded to prevent re-fetch on tab switch
+  const dataLoadedRef = useRef(false);
+
   const loadProjectData = useCallback(async () => {
     if (!project) return;
     setIsLoadingData(true);
     try {
-      const detectedTabs = await fetchSheetTabs(project.sheet_id);
+      const [detectedTabs, trafficTime] = await Promise.all([
+        fetchSheetTabs(project.sheet_id),
+        fetchTrafficUpdateTime(project.sheet_id),
+      ]);
       setTabs(detectedTabs);
+      setTrafficUpdateTime(trafficTime);
+
       const data = await fetchAllTabsData(project.sheet_id, detectedTabs);
       setAllRows(data);
 
-      // Load product classifications
       const products = await getProducts(project.id);
       setProductClassifications(products);
 
-      // Load webhook data
+      // Load webhook + old data in parallel
       try {
-        const wData = await fetchWebhookData(project.sheet_id);
-        // Apply project-specific product classifications
+        const [wData, oldData] = await Promise.all([
+          fetchWebhookData(project.sheet_id),
+          fetchOldData(project.sheet_id),
+        ]);
+
+        // Filter webhooks: only >= 01/04/2026
+        const filteredWebhooks = wData.filter((s) => s.dateObj >= WEBHOOK_CUTOFF);
+
+        // Merge: old data + filtered webhooks
+        const merged = [...oldData, ...filteredWebhooks];
+
+        // Deduplicate by date+productId+buyerName
+        const seen = new Set<string>();
+        const unique: WebhookSale[] = [];
+        for (const sale of merged) {
+          const key = `${sale.dateObj.getTime()}_${sale.productId}_${sale.buyerName}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(sale);
+          }
+        }
+        unique.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+        // Apply classifications
         if (products.length > 0) {
           const classMap = new Map(products.map((p) => [p.product_id, p.category]));
-          for (const sale of wData) {
+          for (const sale of unique) {
             const classified = classMap.get(sale.productId);
             if (classified) sale.productCategory = classified;
           }
         }
-        setWebhookData(wData);
-        if (wData.length > 0) toast.success(`${wData.length} registros de webhooks carregados`);
+        setWebhookData(unique);
+        if (unique.length > 0) toast.success(`${unique.length} registros de vendas carregados`);
       } catch {
-        // webhooks tab may not exist
+        // tabs may not exist
       }
 
       if (data.length > 0) toast.success(`${data.length} registros carregados`);
+      dataLoadedRef.current = true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao conectar");
     } finally {
@@ -86,7 +146,14 @@ const Index = () => {
   }, [project, getProducts]);
 
   useEffect(() => {
-    loadProjectData();
+    if (!dataLoadedRef.current) {
+      loadProjectData();
+    }
+  }, [loadProjectData]);
+
+  const handleRefresh = useCallback(async () => {
+    dataLoadedRef.current = false;
+    await loadProjectData();
   }, [loadProjectData]);
 
   const availableMonths = useMemo(() => {
@@ -110,7 +177,7 @@ const Index = () => {
     let data = webhookData;
     if (selectedMonth !== "all") {
       const [year, month] = selectedMonth.split("-").map(Number);
-      data = data.filter((s) => s.dateObj.getFullYear() === year && s.dateObj.getMonth() + 1 === month);
+      data = data.filter((s) => s.dateObj.getFullYear() === year && s.dateObj.getMonth() === month);
     }
     if (dateFrom) { const start = new Date(dateFrom); start.setHours(0, 0, 0, 0); data = data.filter((s) => s.dateObj >= start); }
     if (dateTo) { const end = new Date(dateTo); end.setHours(23, 59, 59, 999); data = data.filter((s) => s.dateObj <= end); }
@@ -125,10 +192,6 @@ const Index = () => {
       toast.success("CSV exportado!");
     }
   };
-
-  const handleRefresh = useCallback(async () => {
-    await loadProjectData();
-  }, [loadProjectData]);
 
   if (!project) {
     return (
@@ -215,7 +278,7 @@ const Index = () => {
               </TabsList>
 
               <TabsContent value="resumo" className="space-y-6 animate-fade-in">
-                <SummaryCards summary={summary} />
+                <SummaryCards summary={summary} trafficUpdateTime={trafficUpdateTime} />
                 <SalesCharts rows={filteredRows} webhookData={filteredWebhookData} />
               </TabsContent>
 
