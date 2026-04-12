@@ -7,7 +7,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ComposedChart, Area, Line
 } from "recharts";
-import { ShoppingCart, Clock, TrendingUp, Package, RefreshCw, Users, Tag } from "lucide-react";
+import { ShoppingCart, Clock, TrendingUp, Package, RefreshCw, Users, Tag, CreditCard } from "lucide-react";
 
 interface Props {
   webhookData: WebhookSale[];
@@ -45,6 +45,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const approved = useMemo(() => webhookData.filter((s) => s.event.includes("APPROVED")), [webhookData]);
   const refunded = useMemo(() => webhookData.filter((s) => s.event.includes("REFUNDED")), [webhookData]);
 
+  const totalInvestment = useMemo(() => dailyRows.reduce((s, r) => s + r.investment, 0), [dailyRows]);
+
   const kpis = useMemo(() => {
     const totalSales = approved.length;
     const totalRefunds = refunded.length;
@@ -58,10 +60,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     const netCommission = grossCommission - refundCommission;
     const netFees = grossFees - Math.abs(refundFees);
     const uniqueBuyers = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
-    // Ticket médio por clientes únicos
     const avgTicket = uniqueBuyers > 0 ? grossRevenue / uniqueBuyers : 0;
     const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
-    // Clientes únicos que pediram reembolso
     const uniqueRefundBuyers = new Set(refunded.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
     return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers, uniqueRefundBuyers };
   }, [approved, refunded]);
@@ -240,6 +240,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
           { label: "Clientes Únicos", value: kpis.uniqueBuyers, icon: Users, format: "int" as const },
           { label: "Faturamento Bruto", value: kpis.netRevenue, icon: TrendingUp, format: "currency" as const },
           { label: "Comissão Líquida", value: kpis.netCommission, icon: Package, format: "currency" as const },
+          { label: "Investimento", value: totalInvestment, icon: CreditCard, format: "currency" as const, warning: true },
           { label: "Taxas Líquidas", value: kpis.netFees, icon: Tag, format: "currency" as const },
           { label: "Ticket Médio (por cliente)", value: kpis.avgTicket, icon: Clock, format: "currency" as const },
           { label: "Produtos Reembolsados", value: kpis.totalRefunds, icon: RefreshCw, format: "int" as const, negative: true },
