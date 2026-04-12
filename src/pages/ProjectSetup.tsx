@@ -31,32 +31,16 @@ export default function ProjectSetup() {
     if (!project) return;
     setLoading(true);
     try {
-      // Fetch webhook data to detect products
-      const webhookData = await fetchWebhookData(project.sheet_id);
-      const productMap = new Map<string, { name: string; count: number }>();
-      for (const sale of webhookData) {
-        if (!sale.event.includes("APPROVED")) continue;
-        const key = sale.productId || sale.productName;
-        const existing = productMap.get(key);
-        if (existing) {
-          existing.count++;
-        } else {
-          productMap.set(key, { name: sale.productName, count: 1 });
-        }
-      }
-
-      // Load existing saved classifications
+      const productList = await fetchProductList(project.sheet_id);
       const savedProducts = await getProducts(project.id);
       const savedMap = new Map(savedProducts.map((p) => [p.product_id, p.category]));
 
-      const detected: DetectedProduct[] = Array.from(productMap.entries())
-        .map(([id, info]) => ({
-          product_id: id,
-          product_name: info.name,
-          category: savedMap.get(id) || ("orderbump" as const),
-          count: info.count,
-        }))
-        .sort((a, b) => b.count - a.count);
+      const detected: DetectedProduct[] = productList.map((p) => ({
+        product_id: p.productId,
+        product_name: p.productName,
+        category: savedMap.get(p.productId) || ("orderbump" as const),
+        count: p.count,
+      }));
 
       setProducts(detected);
     } catch (err: any) {
