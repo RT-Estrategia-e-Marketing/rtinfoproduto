@@ -9,6 +9,7 @@ import {
 
 interface SummaryCardsProps {
   summary: SalesSummary;
+  trafficUpdateTime?: string | null;
 }
 
 interface MetricCardProps {
@@ -59,7 +60,7 @@ function MetricCard({ label, value, icon, tooltip, variant = "default", delay = 
   );
 }
 
-export function SummaryCards({ summary }: SummaryCardsProps) {
+export function SummaryCards({ summary, trafficUpdateTime }: SummaryCardsProps) {
   const s = summary;
 
   return (
@@ -89,7 +90,7 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         variant="warning"
         delay={100}
         gradient="bg-gradient-to-br from-warning/5 to-transparent"
-        tooltip={`Soma de todos os investimentos diários\n${s.daysCount} dias no período`}
+        tooltip={`Soma de todos os investimentos diários\n${s.daysCount} dias no período${trafficUpdateTime ? `\n\n📊 Última atualização do tráfego:\n${trafficUpdateTime}` : ""}`}
       />
       <MetricCard
         label="Lucro Real"
