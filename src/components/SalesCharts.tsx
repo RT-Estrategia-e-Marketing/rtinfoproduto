@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { type SalesRow, formatCurrency } from "@/services/googleSheets";
+import { getLocalDateKey } from "@/services/dateUtils";
 import { type WebhookSale } from "@/services/webhookParser";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area,
@@ -44,7 +45,7 @@ export function SalesCharts({ rows, webhookData = [] }: SalesChartsProps) {
     const approved = webhookData.filter((s) => s.event.includes("APPROVED"));
     const byDate = new Map<string, { products: number; clients: Set<string> }>();
     for (const s of approved) {
-      const key = s.dateObj.toISOString().slice(0, 10);
+      const key = getLocalDateKey(s.dateObj);
       if (!byDate.has(key)) byDate.set(key, { products: 0, clients: new Set() });
       const entry = byDate.get(key)!;
       entry.products++;

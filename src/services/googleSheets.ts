@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { getLocalDateKey } from "./dateUtils";
 
 export interface SalesRow {
   date: string;
@@ -112,7 +113,7 @@ export async function fetchInvestmentData(sheetId: string): Promise<Map<string, 
             const investStr = (rows[j][1] || "").replace(/^"|"$/g, "").trim();
             const dateObj = parseBRDate(dateStr);
             if (dateObj && !isNaN(dateObj.getTime())) {
-              const key = dateObj.toISOString().slice(0, 10);
+              const key = getLocalDateKey(dateObj);
               const inv = parseBRNumber(investStr);
               if (inv !== 0) investMap.set(key, inv);
             }
