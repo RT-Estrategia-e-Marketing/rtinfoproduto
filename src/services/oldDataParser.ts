@@ -41,8 +41,11 @@ export function parseOldDataRows(csvText: string): WebhookSale[] {
   const headers = parsed.meta.fields || [];
   const findCol = (partials: string[]): string => {
     for (const p of partials) {
-      const found = headers.find((h) => h.toLowerCase().includes(p.toLowerCase()));
-      if (found) return found;
+      const normalized = p.toLowerCase().trim();
+      const exact = headers.find((h) => h.toLowerCase().trim() === normalized);
+      if (exact) return exact;
+      const partial = headers.find((h) => h.toLowerCase().trim().includes(normalized));
+      if (partial) return partial;
     }
     return "";
   };
