@@ -9,6 +9,7 @@ import {
 
 interface SummaryCardsProps {
   summary: SalesSummary;
+  trafficUpdateTime?: string | null;
 }
 
 interface MetricCardProps {
@@ -59,7 +60,7 @@ function MetricCard({ label, value, icon, tooltip, variant = "default", delay = 
   );
 }
 
-export function SummaryCards({ summary }: SummaryCardsProps) {
+export function SummaryCards({ summary, trafficUpdateTime }: SummaryCardsProps) {
   const s = summary;
 
   return (
@@ -82,15 +83,22 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         gradient="bg-gradient-to-br from-success/5 to-transparent"
         tooltip={`Faturamento Bruto ${formatCurrency(s.totalGrossRevenue)} − Taxas ${formatCurrency(s.totalFees)}`}
       />
-      <MetricCard
-        label="Investimento"
-        value={formatCurrency(s.totalInvestment)}
-        icon={<CreditCard className="h-4 w-4" />}
-        variant="warning"
-        delay={100}
-        gradient="bg-gradient-to-br from-warning/5 to-transparent"
-        tooltip={`Soma de todos os investimentos diários\n${s.daysCount} dias no período`}
-      />
+      <div className="relative">
+        <MetricCard
+          label="Investimento"
+          value={formatCurrency(s.totalInvestment)}
+          icon={<CreditCard className="h-4 w-4" />}
+          variant="warning"
+          delay={100}
+          gradient="bg-gradient-to-br from-warning/5 to-transparent"
+          tooltip={`Soma de todos os investimentos diários\n${s.daysCount} dias no período${trafficUpdateTime ? `\n\n📊 Última atualização do tráfego:\n${trafficUpdateTime}` : ""}`}
+        />
+        {trafficUpdateTime && (
+          <p className="text-[10px] text-muted-foreground mt-1 px-1 truncate" title={`Atualizado: ${trafficUpdateTime}`}>
+            🔄 {trafficUpdateTime}
+          </p>
+        )}
+      </div>
       <MetricCard
         label="Lucro Real"
         value={formatCurrency(s.totalRealProfit)}
