@@ -1,9 +1,10 @@
+import { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Download, CalendarIcon, RefreshCw } from "lucide-react";
-import { format, startOfDay, subDays, startOfMonth } from "date-fns";
+import { Download, CalendarIcon, RefreshCw, X } from "lucide-react";
+import { format, startOfDay, subDays, startOfMonth, startOfYear } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +21,7 @@ interface DashboardFiltersProps {
   isLoading: boolean;
 }
 
-type QuickPreset = "hoje" | "ontem" | "7dias" | "mes";
+type QuickPreset = "hoje" | "ontem" | "7dias" | "mes" | "ano";
 
 export function DashboardFilters({
   months,
@@ -34,9 +35,13 @@ export function DashboardFilters({
   onRefresh,
   isLoading,
 }: DashboardFiltersProps) {
+  const [activePreset, setActivePreset] = useState<QuickPreset | null>(null);
+  const [fromOpen, setFromOpen] = useState(false);
+  const [toOpen, setToOpen] = useState(false);
 
   const applyPreset = (preset: QuickPreset) => {
     const today = startOfDay(new Date());
+    setActivePreset(preset);
     onMonthChange("all");
     switch (preset) {
       case "hoje":
@@ -57,20 +62,72 @@ export function DashboardFilters({
         onDateFromChange(startOfMonth(today));
         onDateToChange(today);
         break;
+      case "ano":
+        onDateFromChange(startOfYear(today));
+        onDateToChange(today);
+        break;
     }
   };
+
+  const clearDates = () => {
+    onDateFromChange(undefined);
+    onDateToChange(undefined);
+    setActivePreset(null);
+  };
+
+  const handleDateFromSelect = (date: Date | undefined) => {
+    onDateFromChange(date);
+    setActivePreset(null);
+    setFromOpen(false);
+    if (date && !dateTo) {
+      setTimeout(() => setToOpen(true), 150);
+    }
+  };
+
+  const handleDateToSelect = (date: Date | undefined) => {
+    onDateToChange(date);
+    setActivePreset(null);
+    setToOpen(false);
+  };
+
+  const handleMonthChange = (value: string) => {
+    onMonthChange(value);
+    setActivePreset(null);
+    if (value !== "all") {
+      onDateFromChange(undefined);
+      onDateToChange(undefined);
+    }
+  };
+
+  const presets: { key: QuickPreset; label: string }[] = [
+    { key: "hoje", label: "Hoje" },
+    { key: "ontem", label: "Ontem" },
+    { key: "7dias", label: "Últimos 7 dias" },
+    { key: "mes", label: "Mês Atual" },
+    { key: "ano", label: "Este Ano" },
+  ];
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => applyPreset("hoje")} className="text-xs">Hoje</Button>
-        <Button variant="outline" size="sm" onClick={() => applyPreset("ontem")} className="text-xs">Ontem</Button>
-        <Button variant="outline" size="sm" onClick={() => applyPreset("7dias")} className="text-xs">Últimos 7 dias</Button>
-        <Button variant="outline" size="sm" onClick={() => applyPreset("mes")} className="text-xs">Mês Atual</Button>
+        {presets.map((p) => (
+          <Button
+            key={p.key}
+            variant={activePreset === p.key ? "default" : "outline"}
+            size="sm"
+            onClick={() => applyPreset(p.key)}
+            className={cn(
+              "text-xs transition-all",
+              activePreset === p.key && "shadow-md"
+            )}
+          >
+            {p.label}
+          </Button>
+        ))}
       </div>
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={selectedMonth} onValueChange={onMonthChange}>
+          <Select value={selectedMonth} onValueChange={handleMonthChange}>
             <SelectTrigger className="w-[180px] bg-card">
               <SelectValue placeholder="Todos os meses" />
             </SelectTrigger>
@@ -84,7 +141,7 @@ export function DashboardFilters({
             </SelectContent>
           </Select>
 
-          <Popover>
+          <Popover open={fromOpen} onOpenChange={setFromOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
@@ -92,11 +149,11 @@ export function DashboardFilters({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={dateFrom} onSelect={onDateFromChange} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+              <Calendar mode="single" selected={dateFrom} onSelect={handleDateFromSelect} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
             </PopoverContent>
           </Popover>
 
-          <Popover>
+          <Popover open={toOpen} onOpenChange={setToOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
@@ -104,13 +161,22 @@ export function DashboardFilters({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={dateTo} onSelect={onDateToChange} locale={ptBR} initialFocus className="p-3 pointer-events-auto" />
+              <Calendar
+                mode="single"
+                selected={dateTo}
+                onSelect={handleDateToSelect}
+                locale={ptBR}
+                initialFocus
+                className="p-3 pointer-events-auto"
+                disabled={dateFrom ? (date) => date < dateFrom : undefined}
+              />
             </PopoverContent>
           </Popover>
 
           {(dateFrom || dateTo) && (
-            <Button variant="ghost" size="sm" onClick={() => { onDateFromChange(undefined); onDateToChange(undefined); }}>
-              Limpar datas
+            <Button variant="ghost" size="sm" onClick={clearDates} className="gap-1 text-xs text-muted-foreground hover:text-destructive">
+              <X className="h-3.5 w-3.5" />
+              Limpar
             </Button>
           )}
         </div>

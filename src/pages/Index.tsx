@@ -14,13 +14,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangelogModal } from "@/components/ChangelogModal";
 import { DashboardSkeleton } from "@/components/LoadingSkeleton";
 import {
-  fetchSheetTabs,
-  fetchAllTabsData,
   calculateSummary,
   exportToCSV,
   getAvailableMonths,
   filterByMonth,
-  type SheetTab,
+  fetchInvestmentData,
   type SalesRow,
 } from "@/services/googleSheets";
 import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
@@ -30,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 
 const WEBHOOK_CUTOFF = new Date(2026, 3, 1); // 01/04/2026
+const DAY_LABELS_SHORT = ["dom.", "seg.", "ter.", "qua.", "qui.", "sex.", "sáb."];
 
 /** Fetch the last update timestamp from cell L4 of current month tab */
 async function fetchTrafficUpdateTime(sheetId: string): Promise<string | null> {
@@ -42,20 +41,68 @@ async function fetchTrafficUpdateTime(sheetId: string): Promise<string | null> {
   const query = encodeURIComponent("select L limit 4");
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}&tq=${query}`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const csv = await res.text();
     const lines = csv.split("\n").filter(Boolean);
-    // L4 = row index 3 (0-indexed after header), but with header=true row 4 is line[3]
-    // With raw CSV, line[0] is header, line[3] is row 4
     if (lines.length >= 4) {
       const val = lines[3].replace(/^"|"$/g, "").trim();
+      if (val && val.length > 5) return val;
+    }
+    // Try line 2 (L2) as fallback
+    if (lines.length >= 2) {
+      const val = lines[1].replace(/^"|"$/g, "").trim();
       if (val && val.length > 5) return val;
     }
     return null;
   } catch {
     return null;
   }
+}
+
+/** Aggregate WebhookSale[] into SalesRow[] by day, injecting investment data */
+function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, number>): SalesRow[] {
+  const dayMap = new Map<string, { dateObj: Date; dayOfWeek: string; approved: WebhookSale[]; refunded: WebhookSale[] }>();
+
+  for (const sale of sales) {
+    const key = sale.dateObj.toISOString().slice(0, 10);
+    if (!dayMap.has(key)) {
+      const d = new Date(sale.dateObj.getFullYear(), sale.dateObj.getMonth(), sale.dateObj.getDate());
+      dayMap.set(key, { dateObj: d, dayOfWeek: DAY_LABELS_SHORT[d.getDay()], approved: [], refunded: [] });
+    }
+    const entry = dayMap.get(key)!;
+    if (sale.event.includes("APPROVED")) entry.approved.push(sale);
+    else if (sale.event.includes("REFUNDED")) entry.refunded.push(sale);
+  }
+
+  const rows: SalesRow[] = [];
+  for (const [key, data] of dayMap) {
+    const tickets = data.approved.length;
+    const grossRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0);
+    const fees = data.approved.reduce((s, r) => s + r.platformFee, 0);
+    const grossResult = grossRevenue - fees;
+    const investment = investMap.get(key) || 0;
+    const realProfit = grossResult - investment;
+    const roas = investment > 0 ? realProfit / investment : 0;
+    const avgTicket = tickets > 0 ? grossRevenue / tickets : 0;
+
+    rows.push({
+      date: `${String(data.dateObj.getDate()).padStart(2, "0")}/${String(data.dateObj.getMonth() + 1).padStart(2, "0")}/${data.dateObj.getFullYear()}`,
+      dateObj: data.dateObj,
+      dayOfWeek: data.dayOfWeek,
+      tickets,
+      grossRevenue,
+      fees,
+      grossResult,
+      investment,
+      realProfit,
+      roas,
+      avgTicket,
+    });
+  }
+
+  rows.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+  return rows;
 }
 
 const Index = () => {
@@ -68,7 +115,6 @@ const Index = () => {
 
   const [allRows, setAllRows] = useState<SalesRow[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [tabs, setTabs] = useState<SheetTab[]>([]);
   const [webhookData, setWebhookData] = useState<WebhookSale[]>([]);
   const [productClassifications, setProductClassifications] = useState<ProjectProduct[]>([]);
   const [trafficUpdateTime, setTrafficUpdateTime] = useState<string | null>(null);
@@ -77,79 +123,85 @@ const Index = () => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
 
-  // Track if data was already loaded to prevent re-fetch on tab switch
   const dataLoadedRef = useRef(false);
+  const isInitialMount = useRef(true);
 
-  const loadProjectData = useCallback(async () => {
+  const loadProjectData = useCallback(async (silent = false) => {
     if (!project) return;
-    setIsLoadingData(true);
+    if (!silent) setIsLoadingData(true);
     try {
-      const [detectedTabs, trafficTime] = await Promise.all([
-        fetchSheetTabs(project.sheet_id),
+      const [trafficTime, wData, oldData, investMap, products] = await Promise.all([
         fetchTrafficUpdateTime(project.sheet_id),
+        fetchWebhookData(project.sheet_id).catch(() => [] as WebhookSale[]),
+        fetchOldData(project.sheet_id).catch(() => [] as WebhookSale[]),
+        fetchInvestmentData(project.sheet_id),
+        getProducts(project.id),
       ]);
-      setTabs(detectedTabs);
+
       setTrafficUpdateTime(trafficTime);
-
-      const data = await fetchAllTabsData(project.sheet_id, detectedTabs);
-      setAllRows(data);
-
-      const products = await getProducts(project.id);
       setProductClassifications(products);
 
-      // Load webhook + old data in parallel
-      try {
-        const [wData, oldData] = await Promise.all([
-          fetchWebhookData(project.sheet_id),
-          fetchOldData(project.sheet_id),
-        ]);
+      // Filter webhooks: only >= 01/04/2026
+      const filteredWebhooks = wData.filter((s) => s.dateObj >= WEBHOOK_CUTOFF);
 
-        // Filter webhooks: only >= 01/04/2026
-        const filteredWebhooks = wData.filter((s) => s.dateObj >= WEBHOOK_CUTOFF);
+      // Merge: old data + filtered webhooks
+      const merged = [...oldData, ...filteredWebhooks];
 
-        // Merge: old data + filtered webhooks
-        const merged = [...oldData, ...filteredWebhooks];
-
-        // Deduplicate by date+productId+buyerName
-        const seen = new Set<string>();
-        const unique: WebhookSale[] = [];
-        for (const sale of merged) {
-          const key = `${sale.dateObj.getTime()}_${sale.productId}_${sale.buyerName}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            unique.push(sale);
-          }
+      // Deduplicate by date+productId+buyerName
+      const seen = new Set<string>();
+      const unique: WebhookSale[] = [];
+      for (const sale of merged) {
+        const key = `${sale.dateObj.getTime()}_${sale.productId}_${sale.buyerName}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(sale);
         }
-        unique.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+      }
+      unique.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-        // Apply classifications
-        if (products.length > 0) {
-          const classMap = new Map(products.map((p) => [p.product_id, p.category]));
-          for (const sale of unique) {
-            const classified = classMap.get(sale.productId);
-            if (classified) sale.productCategory = classified;
-          }
+      // Apply classifications
+      if (products.length > 0) {
+        const classMap = new Map(products.map((p) => [p.product_id, p.category]));
+        for (const sale of unique) {
+          const classified = classMap.get(sale.productId);
+          if (classified) sale.productCategory = classified;
         }
-        setWebhookData(unique);
-        if (unique.length > 0) toast.success(`${unique.length} registros de vendas carregados`);
-      } catch {
-        // tabs may not exist
       }
 
-      if (data.length > 0) toast.success(`${data.length} registros carregados`);
+      setWebhookData(unique);
+
+      // Aggregate into SalesRow for main dashboard
+      const rows = aggregateToSalesRows(unique, investMap);
+      setAllRows(rows);
+
+      if (!silent && unique.length > 0) toast.success(`${unique.length} registros de vendas carregados`);
       dataLoadedRef.current = true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao conectar");
+      if (!silent) toast.error(error instanceof Error ? error.message : "Erro ao conectar");
     } finally {
-      setIsLoadingData(false);
+      if (!silent) setIsLoadingData(false);
     }
   }, [project, getProducts]);
 
+  // Initial load
   useEffect(() => {
     if (!dataLoadedRef.current) {
       loadProjectData();
     }
   }, [loadProjectData]);
+
+  // Auto-refresh on filter change (silent, debounced)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (!dataLoadedRef.current) return;
+    const timer = setTimeout(() => {
+      loadProjectData(true);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [dateFrom, dateTo, selectedMonth, loadProjectData]);
 
   const handleRefresh = useCallback(async () => {
     dataLoadedRef.current = false;
@@ -217,7 +269,9 @@ const Index = () => {
             </div>
             <div>
               <h1 className="text-lg font-heading font-bold tracking-tight">{project.name}</h1>
-              <p className="text-[11px] text-muted-foreground">Planilha: {project.sheet_id.slice(0, 16)}... · {allRows.length} registros</p>
+              <p className="text-[11px] text-muted-foreground">
+                {webhookData.length} vendas · {allRows.length} dias
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

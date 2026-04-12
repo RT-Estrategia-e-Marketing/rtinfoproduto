@@ -62,7 +62,7 @@ export function parseBRNumber(value: string): number {
   return isNegative ? -num : num;
 }
 
-function parseBRDate(value: string): Date | null {
+export function parseBRDate(value: string): Date | null {
   if (!value) return null;
   const parts = value.trim().split("/");
   if (parts.length === 3) {
@@ -71,6 +71,63 @@ function parseBRDate(value: string): Date | null {
     return new Date(parseInt(fullYear), parseInt(month) - 1, parseInt(day));
   }
   return null;
+}
+
+/** Fetch only investment data from monthly tabs (lightweight: select A,G) */
+export async function fetchInvestmentData(sheetId: string): Promise<Map<string, number>> {
+  const cacheKey = `invest_${sheetId}`;
+  const cached = getCached<Map<string, number>>(cacheKey);
+  if (cached) return cached;
+
+  const monthNames = [
+    "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+    "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
+  ];
+  const currentYear = new Date().getFullYear();
+  const yearsToTry = [currentYear - 1, currentYear, currentYear + 1].map((y) => String(y).slice(-2));
+
+  const investMap = new Map<string, number>();
+  const tabNames: string[] = [];
+  for (const year of yearsToTry) {
+    for (const month of monthNames) {
+      tabNames.push(`${month} ${year}`);
+    }
+  }
+
+  for (let i = 0; i < tabNames.length; i += 6) {
+    const batch = tabNames.slice(i, i + 6);
+    await Promise.allSettled(
+      batch.map(async (tabName) => {
+        const query = encodeURIComponent("select A,G");
+        const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}&tq=${query}`;
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+          if (!res.ok) return;
+          const csv = await res.text();
+          if (csv.length < 30 || csv.includes("Could not parse query")) return;
+          const parsed = Papa.parse<string[]>(csv, { header: false, skipEmptyLines: true });
+          const rows = parsed.data;
+          for (let j = 1; j < rows.length; j++) {
+            const dateStr = (rows[j][0] || "").replace(/^"|"$/g, "").trim();
+            const investStr = (rows[j][1] || "").replace(/^"|"$/g, "").trim();
+            const dateObj = parseBRDate(dateStr);
+            if (dateObj && !isNaN(dateObj.getTime())) {
+              const key = dateObj.toISOString().slice(0, 10);
+              const inv = parseBRNumber(investStr);
+              if (inv !== 0) investMap.set(key, inv);
+            }
+          }
+        } catch {}
+      })
+    );
+  }
+
+  setCache(cacheKey, investMap);
+  return investMap;
+}
+
+export function clearDataCache() {
+  cache.clear();
 }
 
 export async function fetchSheetTabs(sheetId: string): Promise<SheetTab[]> {
