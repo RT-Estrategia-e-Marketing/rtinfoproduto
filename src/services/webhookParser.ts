@@ -30,6 +30,7 @@ export interface WebhookSale {
   utmContent: string;
   /** Classificação: "principal" | "upsell" | "orderbump" */
   productCategory: "principal" | "upsell" | "orderbump";
+  source: "webhook" | "old";
 }
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -159,6 +160,7 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
       utmSource: (row[colUtmSource] || "").trim(),
       utmContent: (row[colUtmContent] || "").trim(),
       productCategory: classifyProduct(productName),
+      source: "webhook",
     });
   }
 

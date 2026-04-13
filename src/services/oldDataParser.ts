@@ -105,6 +105,7 @@ export function parseOldDataRows(csvText: string): WebhookSale[] {
       utmSource: (row[colUtmSource] || "").trim(),
       utmContent: (row[colUtmContent] || "").trim(),
       productCategory: classifyProduct(productName),
+      source: "old",
     });
   }
 

@@ -83,12 +83,17 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
     const refundedValue = data.refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
     const refundedFees = data.refunded.reduce((s, r) => s + r.platformFee, 0);
 
-    // Net tickets: approved minus refunded
-    const tickets = data.approved.length - refundedTickets;
-    // Net revenue: approved revenue minus refunded value
-    const grossRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0) - refundedValue;
-    // Net fees: approved fees minus fees from refunded (recovered)
-    const fees = data.approved.reduce((s, r) => s + r.platformFee, 0) - refundedFees;
+    // Summing webhook refunds which need to be deducted from APPROVED
+    const webhookRefundedTickets = data.refunded.filter(r => r.source === "webhook").length;
+    const webhookRefundedValue = data.refunded.filter(r => r.source === "webhook").reduce((s, r) => s + Math.abs(r.originalPrice), 0);
+    const webhookRefundedFees = data.refunded.filter(r => r.source === "webhook").reduce((s, r) => s + r.platformFee, 0);
+
+    // Net tickets: approved minus webhook refunded
+    const tickets = data.approved.length - webhookRefundedTickets;
+    // Net revenue: approved revenue minus webhook refunded value
+    const grossRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0) - webhookRefundedValue;
+    // Net fees: approved fees minus webhook fees from refunded (recovered)
+    const fees = data.approved.reduce((s, r) => s + r.platformFee, 0) - webhookRefundedFees;
     const grossResult = grossRevenue - fees;
     const investment = investMap.get(key) || 0;
     const realProfit = grossResult - investment;
