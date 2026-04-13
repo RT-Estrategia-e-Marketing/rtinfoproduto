@@ -495,6 +495,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                     <span className="text-sm font-medium flex-1">{p.name}</span>
                     <div className="text-right">
                       <span className="text-sm font-bold">{p.value} vendas</span>
+                      <span className="text-xs font-semibold text-primary ml-1">({p.percentage.toFixed(1)}%)</span>
                       <span className="text-[11px] text-muted-foreground ml-2">({p.uniqueCustomers} clientes únicos)</span>
                     </div>
                   </div>
