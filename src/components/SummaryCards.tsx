@@ -1,5 +1,5 @@
 import { type SalesSummary, formatCurrency, formatNumber } from "@/services/googleSheets";
-import { DollarSign, TrendingUp, BarChart3, Ticket, CreditCard, TrendingDown, Target, Receipt } from "lucide-react";
+import { DollarSign, TrendingUp, BarChart3, Ticket, CreditCard, TrendingDown, Target, Receipt, RefreshCw } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -137,6 +137,14 @@ export function SummaryCards({ summary, trafficUpdateTime }: SummaryCardsProps) 
         icon={<TrendingDown className="h-4 w-4" />}
         delay={350}
         tooltip={`Faturamento Bruto ${formatCurrency(s.totalGrossRevenue)} ÷ Tickets ${s.totalTickets.toLocaleString("pt-BR")}\n= ${formatCurrency(s.avgTicket)}`}
+      />
+      <MetricCard
+        label="Reembolsos"
+        value={`${s.totalRefundedTickets} (${formatCurrency(s.totalRefundedValue)})`}
+        icon={<RefreshCw className="h-4 w-4" />}
+        variant="danger"
+        delay={400}
+        tooltip={`${s.totalRefundedTickets} produtos reembolsados\nValor total: ${formatCurrency(s.totalRefundedValue)}\n\nNão subtraídos do faturamento bruto`}
       />
     </div>
   );
