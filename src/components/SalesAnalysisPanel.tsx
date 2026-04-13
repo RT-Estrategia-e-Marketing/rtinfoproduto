@@ -8,7 +8,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ComposedChart, Area, Line
 } from "recharts";
-import { ShoppingCart, Clock, TrendingUp, Package, RefreshCw, Users, Tag, CreditCard } from "lucide-react";
+import { ShoppingCart, Clock, TrendingUp, Package, RefreshCw, Users, Tag, CreditCard, Coins } from "lucide-react";
 
 interface Props {
   webhookData: WebhookSale[];
@@ -64,8 +64,9 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     const avgTicket = uniqueBuyers > 0 ? grossRevenue / uniqueBuyers : 0;
     const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
     const uniqueRefundBuyers = new Set(refunded.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
-    return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers, uniqueRefundBuyers };
-  }, [approved, refunded]);
+    const profit = netCommission - totalInvestment;
+    return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers, uniqueRefundBuyers, profit };
+  }, [approved, refunded, totalInvestment]);
 
   // Product category breakdown
   const categoryBreakdown = useMemo(() => {
