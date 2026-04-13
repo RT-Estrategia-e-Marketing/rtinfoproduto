@@ -243,6 +243,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
           { label: "Faturamento Bruto", value: kpis.netRevenue, icon: TrendingUp, format: "currency" as const },
           { label: "Comissão Líquida", value: kpis.netCommission, icon: Package, format: "currency" as const },
           { label: "Investimento", value: totalInvestment, icon: CreditCard, format: "currency" as const, warning: true },
+          { label: "Lucro", value: kpis.profit, icon: Coins, format: "currency" as const, profit: true },
           { label: "Taxas Líquidas", value: kpis.netFees, icon: Tag, format: "currency" as const },
           { label: "Ticket Médio (por cliente)", value: kpis.avgTicket, icon: Clock, format: "currency" as const },
           { label: "Produtos Reembolsados", value: kpis.totalRefunds, icon: RefreshCw, format: "int" as const, negative: true },
@@ -256,7 +257,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <kpi.icon className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-[11px] text-muted-foreground">{kpi.label}</span>
               </div>
-              <p className={`text-lg font-bold ${"negative" in kpi && kpi.negative ? "text-destructive" : "warning" in kpi && kpi.warning ? "text-yellow-600 dark:text-yellow-400" : ""}`}>
+              <p className={`text-lg font-bold ${"negative" in kpi && kpi.negative ? "text-destructive" : "warning" in kpi && kpi.warning ? "text-yellow-600 dark:text-yellow-400" : "profit" in kpi && kpi.profit ? (kpi.value >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive") : ""}`}>
                 {kpi.format === "currency"
                   ? formatCurrency(kpi.value)
                   : kpi.format === "percent"
