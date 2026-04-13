@@ -110,8 +110,18 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
   const rows: WebhookSale[] = [];
 
   for (const row of parsed.data as Record<string, string>[]) {
-    const event = (row[colEvent] || "").trim().toUpperCase();
-    if (!event || (!event.includes("APPROVED") && !event.includes("REFUNDED"))) continue;
+    let event = (row[colEvent] || "").trim().toUpperCase();
+    if (!event) continue;
+    
+    // Normalize chargebacks/disputes to REFUNDED to deduct them equally
+    if (event.includes("CHARGEBACK") || event.includes("DISPUTE")) {
+      event = "PURCHASE_REFUNDED";
+    }
+    if (event.includes("SAQUE") || event.includes("TARIFA") || event.includes("AJUSTE") || event.includes("TAXA")) {
+      event = "SYSTEM_FEE";
+    }
+
+    if (!event.includes("APPROVED") && !event.includes("REFUNDED") && event !== "SYSTEM_FEE") continue;
 
     const dateObj = parseDateTimeSP(row[colDateSP] || "");
     if (!dateObj || isNaN(dateObj.getTime())) continue;

@@ -63,18 +63,19 @@ async function fetchTrafficUpdateTime(sheetId: string): Promise<string | null> {
 
 /** Aggregate WebhookSale[] into SalesRow[] by day, injecting investment data */
 function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, number>): SalesRow[] {
-  const dayMap = new Map<string, { dateObj: Date; dayOfWeek: string; approved: WebhookSale[]; refunded: WebhookSale[] }>();
+  const dayMap = new Map<string, { dateObj: Date; dayOfWeek: string; approved: WebhookSale[]; refunded: WebhookSale[]; systemFees: WebhookSale[] }>();
 
   for (const sale of sales) {
     const key = getLocalDateKey(sale.dateObj);
     if (!dayMap.has(key)) {
       const d = new Date(sale.dateObj.getFullYear(), sale.dateObj.getMonth(), sale.dateObj.getDate());
-      dayMap.set(key, { dateObj: d, dayOfWeek: DAY_LABELS_SHORT[d.getDay()], approved: [], refunded: [] });
+      dayMap.set(key, { dateObj: d, dayOfWeek: DAY_LABELS_SHORT[d.getDay()], approved: [], refunded: [], systemFees: [] });
     }
     const entry = dayMap.get(key)!;
     const eventUpper = sale.event.toUpperCase();
     if (eventUpper.includes("APPROVED")) entry.approved.push(sale);
     else if (eventUpper.includes("REFUNDED")) entry.refunded.push(sale);
+    else if (eventUpper === "SYSTEM_FEE") entry.systemFees.push(sale);
   }
 
   const rows: SalesRow[] = [];
@@ -104,7 +105,17 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
     // Now all metrics are perfectly clean using netApproved
     const tickets = netApproved.length;
     const grossRevenue = netApproved.reduce((s, r) => s + r.originalPrice, 0);
-    const grossResult = netApproved.reduce((s, r) => s + r.commissionReceived, 0);
+    
+    // grossResult sum + systemFees (like withdrawals, which inherently have negative commissionReceived, or we subtract their absolute value if they're positive)
+    const baseResult = netApproved.reduce((s, r) => s + r.commissionReceived, 0);
+    const systemFeesValue = data.systemFees.reduce((s, r) => s + Math.abs(r.commissionReceived || r.originalPrice), 0);
+    
+    // We strictly subtract systemFeesValue (ensure negative impact) if they are fees. 
+    // Usually 'ajuste' can be positive but saque is definitely negative.
+    // If we just mapped it to system fee, it's a deduction.
+    const systemAdjustments = data.systemFees.reduce((s, r) => s + r.commissionReceived, 0);
+    
+    const grossResult = baseResult + systemAdjustments;
     const fees = grossRevenue - grossResult;
     
     const investment = investMap.get(key) || 0;

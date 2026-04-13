@@ -68,6 +68,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
 
   const totalInvestment = useMemo(() => dailyRows.reduce((s, r) => s + r.investment, 0), [dailyRows]);
 
+  const systemFeesList = useMemo(() => webhookData.filter((s) => s.event.toUpperCase() === "SYSTEM_FEE"), [webhookData]);
+
   const kpis = useMemo(() => {
     const totalSales = approved.length;
     const totalRefunds = refunded.length;
@@ -78,12 +80,14 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     const refundRevenue = refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
     const refundCommission = refunded.reduce((s, r) => s + Math.abs(r.commissionReceived), 0);
     
+    const systemAdjustments = systemFeesList.reduce((s, r) => s + r.commissionReceived, 0);
+
     // Fees are directly derived exactly as in the daily view
-    const grossFees = grossRevenue - grossCommission;
+    const grossFees = grossRevenue - (grossCommission + systemAdjustments);
     
     // We map variables to the old net names because the old UI expects 'netRevenue' for 'Faturamento Bruto', etc.
     const netRevenue = grossRevenue; 
-    const netCommission = grossCommission;
+    const netCommission = grossCommission + systemAdjustments;
     const netFees = grossFees;
     
     const uniqueBuyers = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;

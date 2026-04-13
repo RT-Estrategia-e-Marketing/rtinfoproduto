@@ -27,7 +27,8 @@ function parseDateTime(value: string): Date | null {
 function mapStatus(status: string): string {
   const s = status.toLowerCase().trim();
   if (s.includes("aprovad") || s === "aprovada" || s === "approved") return "PURCHASE_APPROVED";
-  if (s.includes("reembols") || s === "refunded") return "PURCHASE_REFUNDED";
+  if (s.includes("reembols") || s === "refunded" || s.includes("chargeback") || s.includes("contest")) return "PURCHASE_REFUNDED";
+  if (s.includes("saque") || s.includes("tarifa") || s.includes("ajuste") || s.includes("taxa")) return "SYSTEM_FEE";
   return status;
 }
 
@@ -72,7 +73,7 @@ export function parseOldDataRows(csvText: string): WebhookSale[] {
     if (!status) continue;
 
     const event = mapStatus(status);
-    if (!event.includes("APPROVED") && !event.includes("REFUNDED")) continue;
+    if (!event.includes("APPROVED") && !event.includes("REFUNDED") && event !== "SYSTEM_FEE") continue;
 
     const dateObj = parseDateTime(row[colDate] || "");
     if (!dateObj || isNaN(dateObj.getTime())) continue;
