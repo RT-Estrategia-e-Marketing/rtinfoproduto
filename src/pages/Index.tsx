@@ -208,6 +208,50 @@ const Index = () => {
         }
       }
 
+      // Fix PRORATING ROUNDING ERRORS from carts with multiple products!
+      // The platform charges 4.99% + R$ 1.00 PER CART. When exporting to CSV/Webhook, it distributes the R$ 1.00 proportionally 
+      // over the multiple items, which drops cents due to javascript/platform truncation.
+      const checkouts = new Map<string, WebhookSale[]>();
+      for (const sale of unique) {
+        if (sale.event !== "PURCHASE_APPROVED" || sale.source === "old") {
+          // Temporarily support testing both sources, but older CSV definitely has it. Let's include everything.
+          // Actually, we want to run this for all APPROVED events.
+        }
+        if (!sale.event.includes("APPROVED")) continue;
+
+        // Group by buyer AND minute (assuming a cart checkout completes simultaneously)
+        const minuteKey = Math.floor(sale.dateObj.getTime() / 60000);
+        const cartKey = `${sale.buyerName.toLowerCase().trim()}_${minuteKey}`;
+        
+        if (!checkouts.has(cartKey)) checkouts.set(cartKey, []);
+        checkouts.get(cartKey)!.push(sale);
+      }
+
+      for (const bundle of checkouts.values()) {
+        if (bundle.length <= 1) continue; // No prorating errors possible on single-item checkouts
+
+        let basketGross = 0;
+        let basketCommissionSum = 0;
+
+        for (const item of bundle) {
+          basketGross += item.originalPrice;
+          basketCommissionSum += item.commissionReceived;
+        }
+
+        if (basketGross <= 0) continue;
+
+        // Theoretical exact global net assuming 4.99% + 1.00 fee
+        const expectedFee = Math.round((basketGross * 0.0499 + 1.00) * 100) / 100;
+        const expectedCommission = basketGross - expectedFee;
+
+        // If the sum currently differs by a tiny fraction (less than 5 cents), it's definitively the prorated rounding bug.
+        const diff = expectedCommission - basketCommissionSum;
+        if (Math.abs(diff) > 0.001 && Math.abs(diff) <= 0.06) {
+          // Apply the missing cents to the first item's commission to snap the total correctly
+          bundle[0].commissionReceived += diff;
+        }
+      }
+
       setWebhookData(unique);
 
       // Aggregate into SalesRow for main dashboard
