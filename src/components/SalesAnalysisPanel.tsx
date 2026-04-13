@@ -202,10 +202,12 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       if (!uniqueMap.has(type)) uniqueMap.set(type, new Set());
       if (s.buyerName) uniqueMap.get(type)!.add(s.buyerName.toLowerCase().trim());
     }
+    const total = Array.from(countMap.values()).reduce((s, v) => s + v, 0);
     return Array.from(countMap.entries())
       .map(([name, value]) => ({
         name,
         value,
+        percentage: total > 0 ? (value / total) * 100 : 0,
         uniqueCustomers: uniqueMap.get(name)?.size || 0,
       }))
       .sort((a, b) => b.value - a.value);
