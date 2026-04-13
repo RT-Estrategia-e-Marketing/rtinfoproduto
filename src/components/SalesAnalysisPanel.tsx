@@ -43,8 +43,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const [trackingColumn, setTrackingColumn] = useState<TrackingKey>("originSck");
   const [originMetric, setOriginMetric] = useState<"tickets" | "revenue" | "clients">("tickets");
 
-  const approved = useMemo(() => webhookData.filter((s) => s.event.includes("APPROVED")), [webhookData]);
-  const refunded = useMemo(() => webhookData.filter((s) => s.event.includes("REFUNDED")), [webhookData]);
+  const approved = useMemo(() => webhookData.filter((s) => s.event.toUpperCase().includes("APPROVED")), [webhookData]);
+  const refunded = useMemo(() => webhookData.filter((s) => s.event.toUpperCase().includes("REFUNDED")), [webhookData]);
 
   const totalInvestment = useMemo(() => dailyRows.reduce((s, r) => s + r.investment, 0), [dailyRows]);
 
@@ -202,10 +202,12 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
       if (!uniqueMap.has(type)) uniqueMap.set(type, new Set());
       if (s.buyerName) uniqueMap.get(type)!.add(s.buyerName.toLowerCase().trim());
     }
+    const total = Array.from(countMap.values()).reduce((s, v) => s + v, 0);
     return Array.from(countMap.entries())
       .map(([name, value]) => ({
         name,
         value,
+        percentage: total > 0 ? (value / total) * 100 : 0,
         uniqueCustomers: uniqueMap.get(name)?.size || 0,
       }))
       .sort((a, b) => b.value - a.value);
@@ -493,6 +495,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                     <span className="text-sm font-medium flex-1">{p.name}</span>
                     <div className="text-right">
                       <span className="text-sm font-bold">{p.value} vendas</span>
+                      <span className="text-xs font-semibold text-primary ml-1">({p.percentage.toFixed(1)}%)</span>
                       <span className="text-[11px] text-muted-foreground ml-2">({p.uniqueCustomers} clientes únicos)</span>
                     </div>
                   </div>
