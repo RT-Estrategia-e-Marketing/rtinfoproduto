@@ -91,7 +91,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     const netFees = grossFees;
     
     const uniqueBuyers = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
-    const avgTicket = totalSales > 0 ? grossRevenue / totalSales : 0;
+    const avgTicket = uniqueBuyers > 0 ? grossRevenue / uniqueBuyers : 0;
     const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
     const uniqueRefundBuyers = new Set(refunded.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
     const profit = netCommission - totalInvestment;

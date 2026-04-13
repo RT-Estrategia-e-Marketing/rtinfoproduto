@@ -15,6 +15,8 @@ export interface SalesRow {
   avgTicket: number;
   refundedTickets: number;
   refundedValue: number;
+  buyersList: string[];
+  uniqueBuyersCount: number;
 }
 
 export interface SheetTab {
@@ -34,6 +36,7 @@ export interface SalesSummary {
   daysCount: number;
   totalRefundedTickets: number;
   totalRefundedValue: number;
+  totalUniqueBuyers: number;
 }
 
 const cache = new Map<string, { data: unknown; timestamp: number }>();
@@ -317,7 +320,7 @@ export function calculateSummary(rows: SalesRow[]): SalesSummary {
     return {
       totalTickets: 0, totalGrossRevenue: 0, totalFees: 0, totalGrossResult: 0,
       totalInvestment: 0, totalRealProfit: 0, avgRoas: 0, avgTicket: 0, daysCount: 0,
-      totalRefundedTickets: 0, totalRefundedValue: 0,
+      totalRefundedTickets: 0, totalRefundedValue: 0, totalUniqueBuyers: 0,
     };
   }
 
@@ -328,14 +331,23 @@ export function calculateSummary(rows: SalesRow[]): SalesSummary {
   const totalInvestment = rows.reduce((sum, r) => sum + r.investment, 0);
   const totalRealProfit = rows.reduce((sum, r) => sum + r.realProfit, 0);
   const avgRoas = totalInvestment > 0 ? totalRealProfit / totalInvestment : 0;
-  const avgTicket = totalTickets > 0 ? totalGrossRevenue / totalTickets : 0;
+  
   const totalRefundedTickets = rows.reduce((sum, r) => sum + r.refundedTickets, 0);
   const totalRefundedValue = rows.reduce((sum, r) => sum + r.refundedValue, 0);
+
+  const uniqueBuyersSet = new Set<string>();
+  for (const r of rows) {
+    for (const b of r.buyersList) {
+      uniqueBuyersSet.add(b);
+    }
+  }
+  const totalUniqueBuyers = uniqueBuyersSet.size;
+  const avgTicket = totalUniqueBuyers > 0 ? totalGrossRevenue / totalUniqueBuyers : 0;
 
   return {
     totalTickets, totalGrossRevenue, totalFees, totalGrossResult,
     totalInvestment, totalRealProfit, avgRoas, avgTicket, daysCount: rows.length,
-    totalRefundedTickets, totalRefundedValue,
+    totalRefundedTickets, totalRefundedValue, totalUniqueBuyers,
   };
 }
 

@@ -1,5 +1,5 @@
 import { type SalesSummary, formatCurrency, formatNumber } from "@/services/googleSheets";
-import { DollarSign, TrendingUp, BarChart3, Ticket, CreditCard, TrendingDown, Target, Receipt, RefreshCw } from "lucide-react";
+import { DollarSign, TrendingUp, BarChart3, Ticket, CreditCard, TrendingDown, Target, Receipt, RefreshCw, Users } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -132,11 +132,18 @@ export function SummaryCards({ summary, trafficUpdateTime }: SummaryCardsProps) 
         tooltip={`Soma de todos os tickets diários\n${s.daysCount} dias no período`}
       />
       <MetricCard
+        label="Clientes Únicos"
+        value={s.totalUniqueBuyers.toLocaleString("pt-BR")}
+        icon={<Users className="h-4 w-4" />}
+        delay={325}
+        tooltip={`Compradores únicos no período (sem repetição)\nUm cliente que comprou 3 produtos conta como 1 cliente único`}
+      />
+      <MetricCard
         label="Ticket Médio"
         value={formatCurrency(s.avgTicket)}
         icon={<TrendingDown className="h-4 w-4" />}
         delay={350}
-        tooltip={`Faturamento Bruto ${formatCurrency(s.totalGrossRevenue)} ÷ Tickets ${s.totalTickets.toLocaleString("pt-BR")}\n= ${formatCurrency(s.avgTicket)}`}
+        tooltip={`Faturamento Bruto ${formatCurrency(s.totalGrossRevenue)} ÷ Clientes Únicos ${s.totalUniqueBuyers.toLocaleString("pt-BR")}\n= ${formatCurrency(s.avgTicket)}`}
       />
       <MetricCard
         label="Reembolsos"

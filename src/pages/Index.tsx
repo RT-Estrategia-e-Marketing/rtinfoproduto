@@ -121,8 +121,12 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
     const investment = investMap.get(key) || 0;
     const realProfit = grossResult - investment;
     const roas = investment > 0 ? realProfit / investment : 0;
-    const netTickets = tickets > 0 ? tickets : 1;
-    const avgTicket = grossRevenue > 0 ? grossRevenue / netTickets : 0;
+    // Unique buyers per day (by name, lowercased)
+    const buyersList = Array.from(
+      new Set(netApproved.map((r) => r.buyerName.toLowerCase().trim()).filter(Boolean))
+    );
+    const uniqueBuyersCount = buyersList.length;
+    const avgTicket = uniqueBuyersCount > 0 ? grossRevenue / uniqueBuyersCount : 0;
 
     rows.push({
       date: `${String(data.dateObj.getDate()).padStart(2, "0")}/${String(data.dateObj.getMonth() + 1).padStart(2, "0")}/${data.dateObj.getFullYear()}`,
@@ -138,6 +142,8 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
       avgTicket,
       refundedTickets,
       refundedValue,
+      buyersList,
+      uniqueBuyersCount,
     });
   }
 
