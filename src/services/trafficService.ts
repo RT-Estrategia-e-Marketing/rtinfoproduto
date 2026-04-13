@@ -89,8 +89,19 @@ export async function fetchTrafficData(sheetId: string): Promise<TrafficRow[]> {
     return [];
   }
 
-  // Row index 1 (2nd row) = headers
-  const headerRow = rawRows[1].map((h) => h.replace(/^"|"$/g, "").trim());
+  // Find the header row dynamically: gviz might skip empty top rows, so the header row 
+  // (which is Line 2 in the sheet) could be at index 0 or 1.
+  // We look for a row where Column D (index 3) is "Data" or similar.
+  let headerRowIndex = 0; // fallback
+  for (let i = 0; i < Math.min(5, rawRows.length); i++) {
+    const colD = (rawRows[i][3] || "").replace(/^"|"$/g, "").toLowerCase().trim();
+    if (colD === "data") {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  const headerRow = rawRows[headerRowIndex].map((h) => h.replace(/^"|"$/g, "").trim());
 
   // Extract metric headers from columns N–X (indices 13–23)
   const METRIC_START = 13; // column N
@@ -103,8 +114,8 @@ export async function fetchTrafficData(sheetId: string): Promise<TrafficRow[]> {
 
   const rows: TrafficRow[] = [];
 
-  // Data rows start at index 2 (3rd row onwards)
-  for (let i = 2; i < rawRows.length; i++) {
+  // Data rows start immediately after the header row
+  for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
     const raw = rawRows[i].map((c) => c.replace(/^"|"$/g, "").trim());
 
     const dateStr = raw[3] || ""; // Column D
