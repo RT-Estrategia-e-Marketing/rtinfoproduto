@@ -186,19 +186,27 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
 
   // Payment type distribution with unique customers
   const paymentDist = useMemo(() => {
+    const normalizePayment = (type: string): string => {
+      const lower = type.toLowerCase().trim();
+      if (lower === "pix") return "PIX";
+      if (lower === "credit_card" || lower === "cartao credito" || lower === "cartão crédito" || lower === "cartão de crédito" || lower === "cartao de credito") return "Cartão de Crédito";
+      if (lower === "boleto" || lower === "billet") return "Boleto";
+      if (!type.trim()) return "Outros";
+      return type.trim();
+    };
     const countMap = new Map<string, number>();
     const uniqueMap = new Map<string, Set<string>>();
     for (const s of approved) {
-      const type = s.paymentType || "Outros";
+      const type = normalizePayment(s.paymentType);
       countMap.set(type, (countMap.get(type) || 0) + 1);
       if (!uniqueMap.has(type)) uniqueMap.set(type, new Set());
       if (s.buyerName) uniqueMap.get(type)!.add(s.buyerName.toLowerCase().trim());
     }
     return Array.from(countMap.entries())
       .map(([name, value]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
+        name,
         value,
-        uniqueCustomers: uniqueMap.get(name.charAt(0).toLowerCase() + name.slice(1))?.size || uniqueMap.get(name)?.size || 0,
+        uniqueCustomers: uniqueMap.get(name)?.size || 0,
       }))
       .sort((a, b) => b.value - a.value);
   }, [approved]);
