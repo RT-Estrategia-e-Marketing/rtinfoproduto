@@ -144,7 +144,7 @@ export function SummaryCards({ summary, trafficUpdateTime }: SummaryCardsProps) 
         icon={<RefreshCw className="h-4 w-4" />}
         variant="danger"
         delay={400}
-        tooltip={`${s.totalRefundedTickets} produtos reembolsados\nValor total: ${formatCurrency(s.totalRefundedValue)}\n\nNão subtraídos do faturamento bruto`}
+        tooltip={`${s.totalRefundedTickets} produtos reembolsados\nValor total: ${formatCurrency(s.totalRefundedValue)}\n\n✅ Já descontados do Faturamento Bruto, Resultado Bruto, Tickets e Lucro Real`}
       />
     </div>
   );

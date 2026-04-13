@@ -79,24 +79,28 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
 
   const rows: SalesRow[] = [];
   for (const [key, data] of dayMap) {
-    const tickets = data.approved.length;
-    const approvedRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0);
-    const approvedFees = data.approved.reduce((s, r) => s + r.platformFee, 0);
-    const grossRevenue = approvedRevenue;
-    const fees = approvedFees;
+    const refundedTickets = data.refunded.length;
+    const refundedValue = data.refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
+    const refundedFees = data.refunded.reduce((s, r) => s + r.platformFee, 0);
+
+    // Net tickets: approved minus refunded
+    const tickets = data.approved.length - refundedTickets;
+    // Net revenue: approved revenue minus refunded value
+    const grossRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0) - refundedValue;
+    // Net fees: approved fees minus fees from refunded (recovered)
+    const fees = data.approved.reduce((s, r) => s + r.platformFee, 0) - refundedFees;
     const grossResult = grossRevenue - fees;
     const investment = investMap.get(key) || 0;
     const realProfit = grossResult - investment;
     const roas = investment > 0 ? realProfit / investment : 0;
-    const avgTicket = tickets > 0 ? grossRevenue / tickets : 0;
-    const refundedTickets = data.refunded.length;
-    const refundedValue = data.refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
+    const netTickets = tickets > 0 ? tickets : 1;
+    const avgTicket = grossRevenue > 0 ? grossRevenue / netTickets : 0;
 
     rows.push({
       date: `${String(data.dateObj.getDate()).padStart(2, "0")}/${String(data.dateObj.getMonth() + 1).padStart(2, "0")}/${data.dateObj.getFullYear()}`,
       dateObj: data.dateObj,
       dayOfWeek: data.dayOfWeek,
-      tickets,
+      tickets: Math.max(0, tickets),
       grossRevenue,
       fees,
       grossResult,
