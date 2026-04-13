@@ -8,7 +8,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ComposedChart, Area, Line
 } from "recharts";
-import { ShoppingCart, Clock, TrendingUp, Package, RefreshCw, Users, Tag, CreditCard } from "lucide-react";
+import { ShoppingCart, Clock, TrendingUp, Package, RefreshCw, Users, Tag, CreditCard, Coins } from "lucide-react";
 
 interface Props {
   webhookData: WebhookSale[];
@@ -64,8 +64,9 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
     const avgTicket = uniqueBuyers > 0 ? grossRevenue / uniqueBuyers : 0;
     const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
     const uniqueRefundBuyers = new Set(refunded.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
-    return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers, uniqueRefundBuyers };
-  }, [approved, refunded]);
+    const profit = netCommission - totalInvestment;
+    return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers, uniqueRefundBuyers, profit };
+  }, [approved, refunded, totalInvestment]);
 
   // Product category breakdown
   const categoryBreakdown = useMemo(() => {
@@ -185,19 +186,27 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
 
   // Payment type distribution with unique customers
   const paymentDist = useMemo(() => {
+    const normalizePayment = (type: string): string => {
+      const lower = type.toLowerCase().trim();
+      if (lower === "pix") return "PIX";
+      if (lower === "credit_card" || lower === "cartao credito" || lower === "cartão crédito" || lower === "cartão de crédito" || lower === "cartao de credito") return "Cartão de Crédito";
+      if (lower === "boleto" || lower === "billet") return "Boleto";
+      if (!type.trim()) return "Outros";
+      return type.trim();
+    };
     const countMap = new Map<string, number>();
     const uniqueMap = new Map<string, Set<string>>();
     for (const s of approved) {
-      const type = s.paymentType || "Outros";
+      const type = normalizePayment(s.paymentType);
       countMap.set(type, (countMap.get(type) || 0) + 1);
       if (!uniqueMap.has(type)) uniqueMap.set(type, new Set());
       if (s.buyerName) uniqueMap.get(type)!.add(s.buyerName.toLowerCase().trim());
     }
     return Array.from(countMap.entries())
       .map(([name, value]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
+        name,
         value,
-        uniqueCustomers: uniqueMap.get(name.charAt(0).toLowerCase() + name.slice(1))?.size || uniqueMap.get(name)?.size || 0,
+        uniqueCustomers: uniqueMap.get(name)?.size || 0,
       }))
       .sort((a, b) => b.value - a.value);
   }, [approved]);
@@ -242,6 +251,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
           { label: "Faturamento Bruto", value: kpis.netRevenue, icon: TrendingUp, format: "currency" as const },
           { label: "Comissão Líquida", value: kpis.netCommission, icon: Package, format: "currency" as const },
           { label: "Investimento", value: totalInvestment, icon: CreditCard, format: "currency" as const, warning: true },
+          { label: "Lucro", value: kpis.profit, icon: Coins, format: "currency" as const, profit: true },
           { label: "Taxas Líquidas", value: kpis.netFees, icon: Tag, format: "currency" as const },
           { label: "Ticket Médio (por cliente)", value: kpis.avgTicket, icon: Clock, format: "currency" as const },
           { label: "Produtos Reembolsados", value: kpis.totalRefunds, icon: RefreshCw, format: "int" as const, negative: true },
@@ -255,7 +265,7 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
                 <kpi.icon className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-[11px] text-muted-foreground">{kpi.label}</span>
               </div>
-              <p className={`text-lg font-bold ${"negative" in kpi && kpi.negative ? "text-destructive" : "warning" in kpi && kpi.warning ? "text-yellow-600 dark:text-yellow-400" : ""}`}>
+              <p className={`text-lg font-bold ${"negative" in kpi && kpi.negative ? "text-destructive" : "warning" in kpi && kpi.warning ? "text-yellow-600 dark:text-yellow-400" : "profit" in kpi && kpi.profit ? (kpi.value >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive") : ""}`}>
                 {kpi.format === "currency"
                   ? formatCurrency(kpi.value)
                   : kpi.format === "percent"

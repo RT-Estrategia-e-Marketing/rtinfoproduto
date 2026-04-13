@@ -13,6 +13,8 @@ export interface SalesRow {
   realProfit: number;
   roas: number;
   avgTicket: number;
+  refundedTickets: number;
+  refundedValue: number;
 }
 
 export interface SheetTab {
@@ -30,6 +32,8 @@ export interface SalesSummary {
   avgRoas: number;
   avgTicket: number;
   daysCount: number;
+  totalRefundedTickets: number;
+  totalRefundedValue: number;
 }
 
 const cache = new Map<string, { data: unknown; timestamp: number }>();
@@ -241,6 +245,8 @@ function parseSheetRows(csvText: string): SalesRow[] {
       realProfit: parseBRNumber(row[colProfit] || "0"),
       roas: parseBRNumber(row[colRoas] || "0"),
       avgTicket: parseBRNumber(row[colAvgTicket] || "0"),
+      refundedTickets: 0,
+      refundedValue: 0,
     });
   }
 
@@ -311,6 +317,7 @@ export function calculateSummary(rows: SalesRow[]): SalesSummary {
     return {
       totalTickets: 0, totalGrossRevenue: 0, totalFees: 0, totalGrossResult: 0,
       totalInvestment: 0, totalRealProfit: 0, avgRoas: 0, avgTicket: 0, daysCount: 0,
+      totalRefundedTickets: 0, totalRefundedValue: 0,
     };
   }
 
@@ -322,10 +329,13 @@ export function calculateSummary(rows: SalesRow[]): SalesSummary {
   const totalRealProfit = rows.reduce((sum, r) => sum + r.realProfit, 0);
   const avgRoas = totalInvestment > 0 ? totalRealProfit / totalInvestment : 0;
   const avgTicket = totalTickets > 0 ? totalGrossRevenue / totalTickets : 0;
+  const totalRefundedTickets = rows.reduce((sum, r) => sum + r.refundedTickets, 0);
+  const totalRefundedValue = rows.reduce((sum, r) => sum + r.refundedValue, 0);
 
   return {
     totalTickets, totalGrossRevenue, totalFees, totalGrossResult,
     totalInvestment, totalRealProfit, avgRoas, avgTicket, daysCount: rows.length,
+    totalRefundedTickets, totalRefundedValue,
   };
 }
 
