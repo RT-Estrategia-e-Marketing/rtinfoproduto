@@ -159,11 +159,11 @@ const Index = () => {
       // Merge: old data + filtered webhooks
       const merged = [...oldData, ...filteredWebhooks];
 
-      // Deduplicate by date+productId+buyerName
+      // Deduplicate by date+event+productId+buyerName
       const seen = new Set<string>();
       const unique: WebhookSale[] = [];
       for (const sale of merged) {
-        const key = `${sale.dateObj.getTime()}_${sale.productId}_${sale.buyerName}`;
+        const key = `${sale.dateObj.getTime()}_${sale.event}_${sale.productId}_${sale.buyerName}`;
         if (!seen.has(key)) {
           seen.add(key);
           unique.push(sale);

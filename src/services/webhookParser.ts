@@ -86,12 +86,23 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
 
   // First pass: build product_id -> product_name map from approved sales
   const idToName = new Map<string, string>();
+  const buyerPriceMap = new Map<string, { price: number; commission: number }>();
+
   for (const row of parsed.data as Record<string, string>[]) {
     const event = (row[colEvent] || "").trim().toUpperCase();
     const productId = (row[colProductId] || "").trim();
     const productName = (row[colProductName] || "").trim();
-    if (event.includes("APPROVED") && productId && productName) {
-      idToName.set(productId, productName);
+    const buyerName = (row[colBuyer] || "").trim();
+    
+    if (event.includes("APPROVED")) {
+      if (productId && productName) {
+        idToName.set(productId, productName);
+      }
+      const originalPrice = parseBRNumber(row[colOriginalPrice] || "0");
+      const commissionReceived = parseBRNumber(row[colCommission] || "0");
+      if (buyerName && productId && originalPrice > 0) {
+        buyerPriceMap.set(`${productId}_${buyerName}`, { price: originalPrice, commission: commissionReceived });
+      }
     }
   }
 
@@ -113,8 +124,19 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
     }
     if (!productName && !productId) continue;
 
-    const originalPrice = parseBRNumber(row[colOriginalPrice] || "0");
-    const commissionReceived = parseBRNumber(row[colCommission] || "0");
+    const buyerName = (row[colBuyer] || "").trim();
+    let originalPrice = parseBRNumber(row[colOriginalPrice] || "0");
+    let commissionReceived = parseBRNumber(row[colCommission] || "0");
+
+    // Hotmart/Kiwify webhooks often omit price in refund events
+    if (event.includes("REFUNDED") && originalPrice === 0) {
+      const saved = buyerPriceMap.get(`${productId}_${buyerName}`);
+      if (saved) {
+        originalPrice = saved.price;
+        commissionReceived = saved.commission;
+      }
+    }
+
     const platformFee = Math.abs(originalPrice) - Math.abs(commissionReceived);
 
     rows.push({
@@ -126,7 +148,7 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
       event,
       productId,
       productName,
-      buyerName: (row[colBuyer] || "").trim(),
+      buyerName,
       originalPrice,
       commissionReceived,
       platformFee: Math.max(0, platformFee),
