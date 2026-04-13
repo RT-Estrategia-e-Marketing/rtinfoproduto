@@ -245,6 +245,8 @@ function parseSheetRows(csvText: string): SalesRow[] {
       realProfit: parseBRNumber(row[colProfit] || "0"),
       roas: parseBRNumber(row[colRoas] || "0"),
       avgTicket: parseBRNumber(row[colAvgTicket] || "0"),
+      refundedTickets: 0,
+      refundedValue: 0,
     });
   }
 

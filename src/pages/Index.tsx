@@ -81,16 +81,15 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
     const tickets = data.approved.length;
     const approvedRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0);
     const approvedFees = data.approved.reduce((s, r) => s + r.platformFee, 0);
-    // Subtract refunded amounts
-    const refundedRevenue = data.refunded.reduce((s, r) => s + r.originalPrice, 0);
-    const refundedFees = data.refunded.reduce((s, r) => s + r.platformFee, 0);
-    const grossRevenue = approvedRevenue - refundedRevenue;
-    const fees = approvedFees - refundedFees;
+    const grossRevenue = approvedRevenue;
+    const fees = approvedFees;
     const grossResult = grossRevenue - fees;
     const investment = investMap.get(key) || 0;
     const realProfit = grossResult - investment;
     const roas = investment > 0 ? realProfit / investment : 0;
     const avgTicket = tickets > 0 ? grossRevenue / tickets : 0;
+    const refundedTickets = data.refunded.length;
+    const refundedValue = data.refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
 
     rows.push({
       date: `${String(data.dateObj.getDate()).padStart(2, "0")}/${String(data.dateObj.getMonth() + 1).padStart(2, "0")}/${data.dateObj.getFullYear()}`,
@@ -104,6 +103,8 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
       realProfit,
       roas,
       avgTicket,
+      refundedTickets,
+      refundedValue,
     });
   }
 
