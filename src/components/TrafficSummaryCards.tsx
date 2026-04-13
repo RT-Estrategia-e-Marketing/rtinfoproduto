@@ -119,7 +119,7 @@ function formatMetricValue(key: string, value: number): string {
     return formatCurrency(value);
   }
   // Percentages
-  if (lower.includes("%") || lower.includes("ctr") || lower.includes("taxa")) {
+  if (lower.includes("%") || lower.includes("ctr") || lower.includes("taxa") || lower.includes("rate")) {
     return `${formatNumber(value)}%`;
   }
   // Default: integer count
@@ -142,6 +142,11 @@ function metricIcon(index: number) {
     <Target className="h-3.5 w-3.5" />,
   ];
   return icons[index % icons.length];
+}
+
+function isSumMetric(key: string): boolean {
+  const l = key.toLowerCase();
+  return l === "impressões" || l === "cliques" || l === "lp view" || l === "checkouts";
 }
 
 export function TrafficSummaryCards({
@@ -254,17 +259,24 @@ export function TrafficSummaryCards({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {metricHeaders.map((header, idx) => (
-              <MetricCard
-                key={header}
-                label={header}
-                value={formatMetricValue(header, ts.metricTotals[header] ?? 0)}
-                icon={metricIcon(idx)}
-                variant="info"
-                delay={320 + idx * 30}
-                tooltip={`Total no período: ${formatMetricValue(header, ts.metricTotals[header] ?? 0)}\nMédia diária: ${formatMetricValue(header, ts.metricAverages[header] ?? 0)}\n${ts.daysCount} dias`}
-              />
-            ))}
+            {metricHeaders.map((header, idx) => {
+              const isSum = isSumMetric(header);
+              const val = isSum ? (ts.metricTotals[header] ?? 0) : (ts.metricAverages[header] ?? 0);
+              
+              return (
+                <MetricCard
+                  key={header}
+                  label={header}
+                  value={formatMetricValue(header, val)}
+                  icon={metricIcon(idx)}
+                  variant="info"
+                  delay={320 + idx * 30}
+                  tooltip={isSum 
+                    ? `Soma do período: ${formatMetricValue(header, ts.metricTotals[header] ?? 0)}\nMédia diária: ${formatMetricValue(header, ts.metricAverages[header] ?? 0)}\n${ts.daysCount} dias`
+                    : `Média do período: ${formatMetricValue(header, ts.metricAverages[header] ?? 0)}\nSoma total: ${formatMetricValue(header, ts.metricTotals[header] ?? 0)}\n${ts.daysCount} dias`}
+                />
+              );
+            })}
           </div>
         </>
       )}

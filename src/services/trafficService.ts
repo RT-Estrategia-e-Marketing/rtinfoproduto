@@ -108,7 +108,20 @@ export async function fetchTrafficData(sheetId: string): Promise<TrafficRow[]> {
   const METRIC_END = 23;   // column X (inclusive)
   const metricHeaders: string[] = [];
   for (let i = METRIC_START; i <= METRIC_END; i++) {
-    const name = headerRow[i] || `Métrica ${i - METRIC_START + 1}`;
+    let name = headerRow[i] || `Métrica ${i - METRIC_START + 1}`;
+    
+    // Rename specific headers as requested
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes("meta ads impressões") || nameLower.includes("meta ads impressoes")) {
+      name = "Impressões";
+    } else if (nameLower.includes("meta ads cliques")) {
+      name = "Cliques";
+    } else if (nameLower.includes("meta ads lp view")) {
+      name = "LP View";
+    } else if (nameLower.includes("meta ads checkouts")) {
+      name = "Checkouts";
+    }
+    
     metricHeaders.push(name);
   }
 

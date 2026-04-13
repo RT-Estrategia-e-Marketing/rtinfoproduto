@@ -23,7 +23,7 @@ function formatMetricValue(key: string, value: number): string {
   ) {
     return formatCurrency(value);
   }
-  if (lower.includes("%") || lower.includes("ctr") || lower.includes("taxa")) {
+  if (lower.includes("%") || lower.includes("ctr") || lower.includes("taxa") || lower.includes("rate")) {
     return `${formatNumber(value)}%`;
   }
   if (lower.includes("roas") || lower.includes("ratio")) {
@@ -48,13 +48,22 @@ export function TrafficDailyTable({ rows }: TrafficDailyTableProps) {
     );
   }
 
-  // Totals
   const totalInv = rows.reduce((s, r) => s + r.investimentoAnuncios, 0);
   const totalInvImposto = rows.reduce((s, r) => s + r.investimentoComImposto, 0);
   const totalImposto = rows.reduce((s, r) => s + r.impostoMetaAds, 0);
+  
   const metricTotals: Record<string, number> = {};
+  const metricAverages: Record<string, number> = {};
+  
   for (const h of metricHeaders) {
-    metricTotals[h] = rows.reduce((s, r) => s + (r.metrics[h] ?? 0), 0);
+    const sum = rows.reduce((s, r) => s + (r.metrics[h] ?? 0), 0);
+    metricTotals[h] = sum;
+    metricAverages[h] = rows.length > 0 ? sum / rows.length : 0;
+  }
+
+  function isSumMetric(key: string): boolean {
+    const l = key.toLowerCase();
+    return l === "impressões" || l === "cliques" || l === "lp view" || l === "checkouts";
   }
 
   return (
@@ -131,21 +140,25 @@ export function TrafficDailyTable({ rows }: TrafficDailyTableProps) {
               <td className="px-3 py-2.5 text-right tabular-nums text-destructive whitespace-nowrap">
                 {formatCurrency(totalImposto)}
               </td>
-              {metricHeaders.map((h) => (
-                <td
-                  key={h}
-                  className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap"
-                >
-                  {formatMetricValue(h, metricTotals[h] ?? 0)}
-                </td>
-              ))}
+              {metricHeaders.map((h) => {
+                const val = isSumMetric(h) ? (metricTotals[h] ?? 0) : (metricAverages[h] ?? 0);
+                return (
+                  <td
+                    key={h}
+                    className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap"
+                    title={isSumMetric(h) ? "Soma do período" : "Média do período"}
+                  >
+                    {formatMetricValue(h, val)}
+                  </td>
+                );
+              })}
             </tr>
           </tfoot>
         </table>
       </div>
       <div className="px-4 py-2 border-t border-border/50 bg-muted/10">
         <p className="text-[10px] text-muted-foreground">
-          Fonte: Aba "Planilha Base" · Dados a partir de 07/08/2025 · Imposto = Col F − Col E
+          Fonte: Aba "Planilha Base" · Dados a partir de 07/08/2025 · Imposto = Col F − Col E · Totalizadores exibem Média (exceto Impressões, Cliques, LP View e Checkouts que exibem Soma).
         </p>
       </div>
     </div>
