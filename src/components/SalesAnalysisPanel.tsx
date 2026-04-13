@@ -43,7 +43,27 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const [trackingColumn, setTrackingColumn] = useState<TrackingKey>("originSck");
   const [originMetric, setOriginMetric] = useState<"tickets" | "revenue" | "clients">("tickets");
 
-  const approved = useMemo(() => webhookData.filter((s) => s.event.toUpperCase().includes("APPROVED")), [webhookData]);
+  const approved = useMemo(() => {
+    const list = webhookData.filter((s) => s.event.toUpperCase().includes("APPROVED"));
+    const refundList = webhookData.filter((s) => s.event.toUpperCase().includes("REFUNDED") && s.source === "webhook");
+    
+    const refundCounts = new Map<string, number>();
+    for (const r of refundList) {
+      const key = `${r.productId}_${r.buyerName.toLowerCase().trim()}`;
+      refundCounts.set(key, (refundCounts.get(key) || 0) + 1);
+    }
+    
+    return list.reverse().filter((s) => {
+      if (s.source === "old") return true;
+      const key = `${s.productId}_${s.buyerName.toLowerCase().trim()}`;
+      if (refundCounts.get(key)! > 0) {
+        refundCounts.set(key, refundCounts.get(key)! - 1);
+        return false;
+      }
+      return true;
+    }).reverse();
+  }, [webhookData]);
+
   const refunded = useMemo(() => webhookData.filter((s) => s.event.toUpperCase().includes("REFUNDED")), [webhookData]);
 
   const totalInvestment = useMemo(() => dailyRows.reduce((s, r) => s + r.investment, 0), [dailyRows]);
@@ -51,20 +71,27 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const kpis = useMemo(() => {
     const totalSales = approved.length;
     const totalRefunds = refunded.length;
+    
     const grossRevenue = approved.reduce((s, r) => s + r.originalPrice, 0);
     const grossCommission = approved.reduce((s, r) => s + r.commissionReceived, 0);
-    const grossFees = approved.reduce((s, r) => s + r.platformFee, 0);
+    
     const refundRevenue = refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
     const refundCommission = refunded.reduce((s, r) => s + Math.abs(r.commissionReceived), 0);
-    const refundFees = refunded.reduce((s, r) => s + r.platformFee, 0);
-    const netRevenue = grossRevenue - refundRevenue;
-    const netCommission = grossCommission - refundCommission;
-    const netFees = grossFees - Math.abs(refundFees);
+    
+    // Fees are directly derived exactly as in the daily view
+    const grossFees = grossRevenue - grossCommission;
+    
+    // We map variables to the old net names because the old UI expects 'netRevenue' for 'Faturamento Bruto', etc.
+    const netRevenue = grossRevenue; 
+    const netCommission = grossCommission;
+    const netFees = grossFees;
+    
     const uniqueBuyers = new Set(approved.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
-    const avgTicket = uniqueBuyers > 0 ? grossRevenue / uniqueBuyers : 0;
+    const avgTicket = totalSales > 0 ? grossRevenue / totalSales : 0;
     const refundRate = totalSales > 0 ? (totalRefunds / (totalSales + totalRefunds)) * 100 : 0;
     const uniqueRefundBuyers = new Set(refunded.map((s) => s.buyerName.toLowerCase().trim()).filter(Boolean)).size;
     const profit = netCommission - totalInvestment;
+    
     return { totalSales, totalRefunds, grossRevenue, grossCommission, grossFees, refundRevenue, refundCommission, netRevenue, netCommission, netFees, avgTicket, refundRate, uniqueBuyers, uniqueRefundBuyers, profit };
   }, [approved, refunded, totalInvestment]);
 

@@ -90,11 +90,15 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
 
     // Net tickets: approved minus webhook refunded
     const tickets = data.approved.length - webhookRefundedTickets;
-    // Net revenue: approved revenue minus webhook refunded value
+    
+    // Revenue and commissions
     const grossRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0) - webhookRefundedValue;
-    // Net fees: approved fees minus webhook fees from refunded (recovered)
-    const fees = data.approved.reduce((s, r) => s + r.platformFee, 0) - webhookRefundedFees;
-    const grossResult = grossRevenue - fees;
+    const webhookRefundedCommission = data.refunded.filter(r => r.source === "webhook").reduce((s, r) => s + r.commissionReceived, 0);
+    const grossResult = data.approved.reduce((s, r) => s + r.commissionReceived, 0) - webhookRefundedCommission;
+    
+    // Net fees is strictly the difference between revenue and the net result
+    const fees = grossRevenue - grossResult;
+    
     const investment = investMap.get(key) || 0;
     const realProfit = grossResult - investment;
     const roas = investment > 0 ? realProfit / investment : 0;
