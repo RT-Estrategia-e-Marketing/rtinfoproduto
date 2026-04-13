@@ -43,8 +43,8 @@ export function SalesAnalysisPanel({ webhookData, dailyRows }: Props) {
   const [trackingColumn, setTrackingColumn] = useState<TrackingKey>("originSck");
   const [originMetric, setOriginMetric] = useState<"tickets" | "revenue" | "clients">("tickets");
 
-  const approved = useMemo(() => webhookData.filter((s) => s.event.includes("APPROVED")), [webhookData]);
-  const refunded = useMemo(() => webhookData.filter((s) => s.event.includes("REFUNDED")), [webhookData]);
+  const approved = useMemo(() => webhookData.filter((s) => s.event.toUpperCase().includes("APPROVED")), [webhookData]);
+  const refunded = useMemo(() => webhookData.filter((s) => s.event.toUpperCase().includes("REFUNDED")), [webhookData]);
 
   const totalInvestment = useMemo(() => dailyRows.reduce((s, r) => s + r.investment, 0), [dailyRows]);
 

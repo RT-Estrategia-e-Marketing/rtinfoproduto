@@ -98,7 +98,7 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
   const rows: WebhookSale[] = [];
 
   for (const row of parsed.data as Record<string, string>[]) {
-    const event = (row[colEvent] || "").trim();
+    const event = (row[colEvent] || "").trim().toUpperCase();
     if (!event || (!event.includes("APPROVED") && !event.includes("REFUNDED"))) continue;
 
     const dateObj = parseDateTimeSP(row[colDateSP] || "");

@@ -72,8 +72,9 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
       dayMap.set(key, { dateObj: d, dayOfWeek: DAY_LABELS_SHORT[d.getDay()], approved: [], refunded: [] });
     }
     const entry = dayMap.get(key)!;
-    if (sale.event.includes("APPROVED")) entry.approved.push(sale);
-    else if (sale.event.includes("REFUNDED")) entry.refunded.push(sale);
+    const eventUpper = sale.event.toUpperCase();
+    if (eventUpper.includes("APPROVED")) entry.approved.push(sale);
+    else if (eventUpper.includes("REFUNDED")) entry.refunded.push(sale);
   }
 
   const rows: SalesRow[] = [];
