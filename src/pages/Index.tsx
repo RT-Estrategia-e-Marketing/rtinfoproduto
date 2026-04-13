@@ -81,22 +81,30 @@ function aggregateToSalesRows(sales: WebhookSale[], investMap: Map<string, numbe
   for (const [key, data] of dayMap) {
     const refundedTickets = data.refunded.length;
     const refundedValue = data.refunded.reduce((s, r) => s + Math.abs(r.originalPrice), 0);
-    const refundedFees = data.refunded.reduce((s, r) => s + r.platformFee, 0);
 
-    // Summing webhook refunds which need to be deducted from APPROVED
-    const webhookRefundedTickets = data.refunded.filter(r => r.source === "webhook").length;
-    const webhookRefundedValue = data.refunded.filter(r => r.source === "webhook").reduce((s, r) => s + Math.abs(r.originalPrice), 0);
-    const webhookRefundedFees = data.refunded.filter(r => r.source === "webhook").reduce((s, r) => s + r.platformFee, 0);
+    // Filter out approved items that were refunded (only for webhooks)
+    const refundCounts = new Map<string, number>();
+    for (const r of data.refunded) {
+      if (r.source === "webhook") {
+        const key = `${r.productId}_${r.buyerName.toLowerCase().trim()}`;
+        refundCounts.set(key, (refundCounts.get(key) || 0) + 1);
+      }
+    }
 
-    // Net tickets: approved minus webhook refunded
-    const tickets = data.approved.length - webhookRefundedTickets;
-    
-    // Revenue and commissions
-    const grossRevenue = data.approved.reduce((s, r) => s + r.originalPrice, 0) - webhookRefundedValue;
-    const webhookRefundedCommission = data.refunded.filter(r => r.source === "webhook").reduce((s, r) => s + r.commissionReceived, 0);
-    const grossResult = data.approved.reduce((s, r) => s + r.commissionReceived, 0) - webhookRefundedCommission;
-    
-    // Net fees is strictly the difference between revenue and the net result
+    const netApproved = data.approved.reverse().filter((s) => {
+      if (s.source === "old") return true;
+      const key = `${s.productId}_${s.buyerName.toLowerCase().trim()}`;
+      if (refundCounts.get(key)! > 0) {
+        refundCounts.set(key, refundCounts.get(key)! - 1);
+        return false;
+      }
+      return true;
+    }).reverse();
+
+    // Now all metrics are perfectly clean using netApproved
+    const tickets = netApproved.length;
+    const grossRevenue = netApproved.reduce((s, r) => s + r.originalPrice, 0);
+    const grossResult = netApproved.reduce((s, r) => s + r.commissionReceived, 0);
     const fees = grossRevenue - grossResult;
     
     const investment = investMap.get(key) || 0;
