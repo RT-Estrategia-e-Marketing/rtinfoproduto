@@ -87,7 +87,7 @@ export function parseWebhookRows(csvText: string): WebhookSale[] {
   // First pass: build product_id -> product_name map from approved sales
   const idToName = new Map<string, string>();
   for (const row of parsed.data as Record<string, string>[]) {
-    const event = (row[colEvent] || "").trim();
+    const event = (row[colEvent] || "").trim().toUpperCase();
     const productId = (row[colProductId] || "").trim();
     const productName = (row[colProductName] || "").trim();
     if (event.includes("APPROVED") && productId && productName) {
