@@ -10,6 +10,8 @@ import { SalesCharts } from "@/components/SalesCharts";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { AIChatPanel } from "@/components/AIChatPanel";
 import { SalesAnalysisPanel } from "@/components/SalesAnalysisPanel";
+import { TrafficSummaryCards } from "@/components/TrafficSummaryCards";
+import { TrafficDailyTable } from "@/components/TrafficDailyTable";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ChangelogModal } from "@/components/ChangelogModal";
 import { DashboardSkeleton } from "@/components/LoadingSkeleton";
@@ -21,10 +23,17 @@ import {
   fetchInvestmentData,
   type SalesRow,
 } from "@/services/googleSheets";
+import {
+  fetchTrafficData,
+  filterTrafficByDateRange,
+  filterTrafficByMonth,
+  calculateTrafficSummary,
+  type TrafficRow,
+} from "@/services/trafficService";
 import { fetchWebhookData, type WebhookSale } from "@/services/webhookParser";
 import { fetchOldData } from "@/services/oldDataParser";
 import { getLocalDateKey } from "@/services/dateUtils";
-import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap, LogOut, Settings, ArrowLeft } from "lucide-react";
+import { BarChart3, LayoutDashboard, LineChart, TableProperties, Lightbulb, MessageSquareText, Zap, LogOut, Settings, ArrowLeft, Activity } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 
@@ -164,6 +173,8 @@ const Index = () => {
   const [webhookData, setWebhookData] = useState<WebhookSale[]>([]);
   const [productClassifications, setProductClassifications] = useState<ProjectProduct[]>([]);
   const [trafficUpdateTime, setTrafficUpdateTime] = useState<string | null>(null);
+  const [allTrafficRows, setAllTrafficRows] = useState<TrafficRow[]>([]);
+  const [isLoadingTraffic, setIsLoadingTraffic] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -172,20 +183,35 @@ const Index = () => {
   const dataLoadedRef = useRef(false);
   const isInitialMount = useRef(true);
 
+  const loadTrafficData = useCallback(async (silent = false) => {
+    if (!project) return;
+    if (!silent) setIsLoadingTraffic(true);
+    try {
+      const rows = await fetchTrafficData(project.sheet_id);
+      setAllTrafficRows(rows);
+    } catch (error) {
+      if (!silent) toast.error(error instanceof Error ? error.message : "Erro ao carregar dados de tráfego");
+    } finally {
+      if (!silent) setIsLoadingTraffic(false);
+    }
+  }, [project]);
+
   const loadProjectData = useCallback(async (silent = false) => {
     if (!project) return;
     if (!silent) setIsLoadingData(true);
     try {
-      const [trafficTime, wData, oldData, investMap, products] = await Promise.all([
+      const [trafficTime, wData, oldData, investMap, products, trafficRows] = await Promise.all([
         fetchTrafficUpdateTime(project.sheet_id),
         fetchWebhookData(project.sheet_id).catch(() => [] as WebhookSale[]),
         fetchOldData(project.sheet_id).catch(() => [] as WebhookSale[]),
         fetchInvestmentData(project.sheet_id),
         getProducts(project.id),
+        fetchTrafficData(project.sheet_id).catch(() => [] as TrafficRow[]),
       ]);
 
       setTrafficUpdateTime(trafficTime);
       setProductClassifications(products);
+      setAllTrafficRows(trafficRows);
 
       // Filter webhooks: only >= 01/04/2026
       const filteredWebhooks = wData.filter((s) => s.dateObj >= WEBHOOK_CUTOFF);
@@ -297,6 +323,26 @@ const Index = () => {
     dataLoadedRef.current = false;
     await loadProjectData();
   }, [loadProjectData]);
+
+  const filteredTrafficRows = useMemo(() => {
+    let rows = allTrafficRows;
+    if (selectedMonth !== "all") {
+      const [year, month] = selectedMonth.split("-").map(Number);
+      rows = filterTrafficByMonth(rows, year, month);
+    }
+    if (dateFrom) {
+      const start = new Date(dateFrom);
+      start.setHours(0, 0, 0, 0);
+      rows = filterTrafficByDateRange(rows, start, dateTo ? new Date(new Date(dateTo).setHours(23, 59, 59, 999)) : new Date(8640000000000000));
+    } else if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      rows = filterTrafficByDateRange(rows, new Date(0), end);
+    }
+    return rows;
+  }, [allTrafficRows, selectedMonth, dateFrom, dateTo]);
+
+  const trafficSummary = useMemo(() => calculateTrafficSummary(filteredTrafficRows), [filteredTrafficRows]);
 
   const availableMonths = useMemo(() => {
     return getAvailableMonths(allRows).map((m) => ({
@@ -419,6 +465,9 @@ const Index = () => {
                     <Zap className="h-3.5 w-3.5" /> Análise Vendas
                   </TabsTrigger>
                 )}
+                <TabsTrigger value="trafego" className="gap-1.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <Activity className="h-3.5 w-3.5" /> Tráfego
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="resumo" className="space-y-6 animate-fade-in">
@@ -447,6 +496,26 @@ const Index = () => {
                   <SalesAnalysisPanel webhookData={filteredWebhookData} dailyRows={filteredRows} />
                 </TabsContent>
               )}
+
+              <TabsContent value="trafego" className="space-y-6 animate-fade-in">
+                {isLoadingTraffic ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="flex flex-col items-center gap-3">
+                      <Activity className="h-8 w-8 animate-pulse text-primary" />
+                      <p className="text-sm text-muted-foreground">Carregando dados de tráfego...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <TrafficSummaryCards
+                      trafficSummary={trafficSummary}
+                      financialSummary={summary}
+                      trafficRows={filteredTrafficRows}
+                    />
+                    <TrafficDailyTable rows={filteredTrafficRows} />
+                  </>
+                )}
+              </TabsContent>
             </Tabs>
           )}
         </div>
