@@ -13,14 +13,26 @@ function classifyProduct(name: string): "principal" | "upsell" | "orderbump" {
 
 function parseDateTime(value: string): Date | null {
   if (!value) return null;
-  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
+  const t = value.trim();
+
+  // Se houver 'T', tentar parse padrão nativo caso a plataforma exporte formato ISO
+  if (t.includes("T")) {
+    const d = new Date(t);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // YYYY-MM-DD com ou sem hora
+  const match = t.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
   if (match) {
-    return new Date(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]);
+    return new Date(+match[1], +match[2] - 1, +match[3], +(match[4] || 0), +(match[5] || 0), +(match[6] || 0));
   }
-  const match2 = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  
+  // DD/MM/YYYY com ou sem hora
+  const match2 = t.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
   if (match2) {
-    return new Date(+match2[3], +match2[2] - 1, +match2[1], +match2[4], +match2[5], +(match2[6] || 0));
+    return new Date(+match2[3], +match2[2] - 1, +match2[1], +(match2[4] || 0), +(match2[5] || 0), +(match2[6] || 0));
   }
+  
   return null;
 }
 
@@ -58,13 +70,14 @@ export function parseOldDataRows(csvText: string): WebhookSale[] {
   const colBuyer = findCol(["Comprador"]);
   const colEmail = findCol(["Email"]);
   const colValorLiquido = findCol(["Valor_Liquido", "ValorLiquido"]);
-  const colPrecoBase = findCol(["Preco_Base_do_Produto", "PrecoBase"]);
-  const colSck = findCol(["Sck"]);
+  const colPrecoBase = findCol(["Preco_Base_do_Produto", "PrecoBase", "Valor_Bruto", "ValorBruto"]);
+  const colSck = findCol(["Sck", "src"]);
   const colUtmCampaign = findCol(["UtmCampaign"]);
   const colUtmMedium = findCol(["UtmMedium"]);
   const colUtmSource = findCol(["UtmSource"]);
   const colUtmContent = findCol(["UtmContent"]);
-  const colDate = findCol(["Data"]);
+  // A prioridade da Data é essencialmente a APROVAÇÃO, pois boletos gerados e não pagos não contam p/ o dia financeiro.
+  const colDate = findCol(["Data de Aprovação", "Data de Aprovacao", "Data Aprovação", "Data Confirmação", "Data Confirmacao", "Aprovacao", "Aprovação", "Data de Venda", "Data", "Criado"]);
 
   const rows: WebhookSale[] = [];
 
