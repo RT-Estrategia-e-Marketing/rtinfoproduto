@@ -84,8 +84,8 @@ export function parseOldDataRows(csvText: string): WebhookSale[] {
   const colUtmMedium = findCol(["UtmMedium"]);
   const colUtmSource = findCol(["UtmSource"]);
   const colUtmContent = findCol(["UtmContent"]);
-  // A prioridade da Data é essencialmente a APROVAÇÃO, pois boletos gerados e não pagos não contam p/ o dia financeiro.
-  const colDate = findCol(["Data de Aprovação", "Data de Aprovacao", "Data Aprovação", "Data Confirmação", "Data Confirmacao", "Aprovacao", "Aprovação", "Data de Venda", "Data", "Criado"]);
+  // Revertendo a busca de coluna para Data exata ou Data da Venda para bater com o check do dashboard
+  const colDate = findCol(["Data da Venda", "Data de Venda", "Data"]);
 
   const rows: WebhookSale[] = [];
 
