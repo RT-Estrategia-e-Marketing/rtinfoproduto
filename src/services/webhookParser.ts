@@ -37,13 +37,26 @@ const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function parseDateTimeSP(value: string): Date | null {
   if (!value) return null;
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
-  if (match) {
-    return new Date(
-      parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]),
-      parseInt(match[4]), parseInt(match[5]), parseInt(match[6])
-    );
+  const t = value.trim();
+
+  // Formato ISO-like (ex: 2026-02-15T02:23:45.000Z) convertido forçadamente para Local Time
+  const isoMatch = t.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (isoMatch) {
+    return new Date(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3], +isoMatch[4], +isoMatch[5], +(isoMatch[6] || 0));
   }
+
+  // YYYY-MM-DD com ou sem hora
+  const match = t.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (match) {
+    return new Date(+match[1], +match[2] - 1, +match[3], +(match[4] || 0), +(match[5] || 0), +(match[6] || 0));
+  }
+  
+  // DD/MM/YYYY com ou sem hora
+  const match2 = t.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (match2) {
+    return new Date(+match2[3], +match2[2] - 1, +match2[1], +(match2[4] || 0), +(match2[5] || 0), +(match2[6] || 0));
+  }
+  
   return null;
 }
 

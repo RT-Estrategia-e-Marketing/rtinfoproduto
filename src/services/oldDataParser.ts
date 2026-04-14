@@ -15,10 +15,10 @@ function parseDateTime(value: string): Date | null {
   if (!value) return null;
   const t = value.trim();
 
-  // Se houver 'T', tentar parse padrão nativo caso a plataforma exporte formato ISO
-  if (t.includes("T")) {
-    const d = new Date(t);
-    if (!isNaN(d.getTime())) return d;
+  // Formato ISO-like (ex: 2026-02-15T02:23:45.000Z) convertido forçadamente para Local Time
+  const isoMatch = t.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (isoMatch) {
+    return new Date(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3], +isoMatch[4], +isoMatch[5], +(isoMatch[6] || 0));
   }
 
   // YYYY-MM-DD com ou sem hora
